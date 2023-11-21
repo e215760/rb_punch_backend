@@ -15,6 +15,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     @IBOutlet var sceneView: ARSCNView!
     
     //1120
+    //노드를 삭제하기 위해서 createnodes를 ㅏㅈㄱ성
     var createdNodes = [SCNNode]()
     var isARRunning = false
     
@@ -29,6 +30,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                 self.createdNodes.removeAll()
             }
         }
+        
         //1120
         // Set the view's delegate
         sceneView.delegate = self
@@ -52,14 +54,15 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             isARRunning = !isARRunning
         }
     *///123123
+    
     override func viewWillAppear(_ animated: Bool) {
         
         super.viewWillAppear(animated)
         let configuration = ARWorldTrackingConfiguration()
-        //configuration.planeDetection = .vertical
+        configuration.planeDetection = .vertical
         sceneView.session.run(configuration)
         
-        
+
     }
     
     override func viewWillDisappear(_ animated: Bool) {
@@ -82,11 +85,11 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         // 모든 특징점을 표시하는 노드를 생성
         let parent = SCNNode()
         
-        for i in stride(from: 0, to: points.count, by: 35)  {
+        for i in stride(from: 0, to: points.count, by: 30)  {
             // 각 특징점에 대한 SCNNode를 생성
             let point = points[i]
             let node = SCNNode()
-            node.geometry = SCNSphere(radius: 0.0075) // 점의 크기를 설정
+            node.geometry = SCNSphere(radius: 0.0055) // 점의 크기를 설정
             node.position = SCNVector3(point.x, point.y, point.z)
             
             // 생성된 노드를 부모 노드에 추가
@@ -100,155 +103,155 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         }
     }
     
-    /*1111111111111111
      func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
      
-     if let planeAnchor = anchor as? ARPlaneAnchor {
-     
-     let width = CGFloat(planeAnchor.transform.columns.3.x)
-     let height = CGFloat(planeAnchor.transform.columns.3.z)
-     let center = planeAnchor.center
-     let plane = SCNPlane(width: width, height: height)
-     let planeNode = SCNNode(geometry: plane)
-     planeNode.eulerAngles.x = -.pi / 2
-     planeNode.position = SCNVector3(center.x, 0, center.z)
-     
-     node.addChildNode(planeNode)
-     
-     if let closeAnchor = findClosestAnchorsFromCamera(){
-     let anchorForCamera = closeAnchor
-     print("Anchor 1: \(anchorForCamera)")
-     let nodeForCamera = SCNNode()
-     let materialForCamera = SCNMaterial()
-     materialForCamera.diffuse.contents = UIColor.red
-     nodeForCamera.geometry = SCNBox(width: 0.01, height: 0.01, length: 0.01, chamferRadius: 0.0)
-     nodeForCamera.geometry?.materials = [materialForCamera]
-     nodeForCamera.position = SCNVector3(anchorForCamera.transform.columns.3.x,
-     anchorForCamera.transform.columns.3.y,
-     anchorForCamera.transform.columns.3.z)
-     
-     //node.addChildNode(nodeForCamera)
-     
-     
-     }
-     
-     if let closePair = findClosestAnchors(){
-     let anchor1 = closePair.0
-     let anchor2 = closePair.1
-     print("Anchor 1: \(anchor1)")
-     print("Anchor 2: \(anchor2)")
-     
-     let disBWA = distanceBetweenAnchors(anchor1: anchor1, anchor2: anchor2)
-     /*
-      let node1 = SCNNode()
-      let node2 = SCNNode()
-      
-      let material1 = SCNMaterial()
-      material1.diffuse.contents = UIColor.blue
-      let material2 = SCNMaterial()
-      material2.diffuse.contents = UIColor.red
-      
-      node1.geometry = SCNBox(width: 0.1, height: 0.1, length: 0.1, chamferRadius: 0.0)
-      node1.geometry?.materials = [material1]
-      node1.position = SCNVector3(anchor1.transform.columns.3.x,
-      anchor1.transform.columns.3.y,
-      anchor1.transform.columns.3.z)
-      
-      node2.geometry = SCNBox(width: 0.1, height: 0.1, length: 0.1, chamferRadius: 0.0)
-      node2.geometry?.materials = [material2]
-      node2.position = SCNVector3(anchor2.transform.columns.3.x,
-      anchor2.transform.columns.3.y,
-      anchor2.transform.columns.3.z)
-      
-      node.addChildNode(node1)
-      node.addChildNode(node2)
-      */
-     
-     }
-     
-     }
+         if let planeAnchor = anchor as? ARPlaneAnchor {
+             
+             let width = CGFloat(planeAnchor.transform.columns.3.x)
+             let height = CGFloat(planeAnchor.transform.columns.3.z)
+             let center = planeAnchor.center
+             let plane = SCNPlane(width: width, height: height)
+             let planeNode = SCNNode(geometry: plane)
+             planeNode.eulerAngles.x = -.pi / 2
+             planeNode.position = SCNVector3(center.x, 0, center.z)
+             
+             node.addChildNode(planeNode)
+             
+             if let closeAnchor = findClosestAnchorsFromCamera(){
+                 let anchorForCamera = closeAnchor
+                 print("Anchor 1: \(anchorForCamera)")
+                 let nodeForCamera = SCNNode()
+                 let materialForCamera = SCNMaterial()
+                 materialForCamera.diffuse.contents = UIColor.red
+                 nodeForCamera.geometry = SCNBox(width: 0.01,
+                                                 height: 0.01,
+                                                 length: 0.01,
+                                                 chamferRadius: 0.0)
+                 nodeForCamera.geometry?.materials = [materialForCamera]
+                 nodeForCamera.position = SCNVector3(anchorForCamera.transform.columns.3.x,
+                                                     anchorForCamera.transform.columns.3.y,
+                                                     anchorForCamera.transform.columns.3.z)
+                 node.addChildNode(nodeForCamera)
+                 
+                 
+             }
+             
+             if let closePair = findClosestAnchors(){
+                 let anchor1 = closePair.0
+                 let anchor2 = closePair.1
+                 //print("Anchor 1: \(anchor1)")
+                 //print("Anchor 2: \(anchor2)")
+                 
+                 let disBWA = distanceBetweenAnchors(anchor1: anchor1, anchor2: anchor2)
+                 
+                 
+                 //node1
+                 let node1 = SCNNode()
+                 let material1 = SCNMaterial()
+                 material1.diffuse.contents = UIColor.blue
+                 node1.geometry = SCNBox(width: 0.1,
+                                         height: 0.1,
+                                         length: 0.1,
+                                         chamferRadius: 0.0)
+                 node1.geometry?.materials = [material1]
+                 node1.position = SCNVector3(anchor1.transform.columns.3.x,
+                                             anchor1.transform.columns.3.y,
+                                             anchor1.transform.columns.3.z)
+                 node.addChildNode(node1)
+                 
+                 
+                 //node2
+                 let node2 = SCNNode()
+                 let material2 = SCNMaterial()
+                 material2.diffuse.contents = UIColor.red
+                 node2.geometry = SCNBox(width: 0.1,
+                                         height: 0.1,
+                                         length: 0.1,
+                                         chamferRadius: 0.0)
+                 node2.geometry?.materials = [material2]
+                 node2.position = SCNVector3(anchor2.transform.columns.3.x,
+                                             anchor2.transform.columns.3.y,
+                                             anchor2.transform.columns.3.z)
+                 node.addChildNode(node2)
+             }
+         }
      }
      
      
      
      func createWallNode(planeAnchor: ARPlaneAnchor) -> SCNNode {
-     let width = CGFloat(planeAnchor.transform.columns.3.x)
-     let height = CGFloat(planeAnchor.transform.columns.3.z)
-     let center = planeAnchor.center
-     let plane = SCNPlane(width: width, height: height)
-     let material = SCNMaterial()
-     material.diffuse.contents = UIColor.red
-     let planeNode = SCNNode(geometry: plane)
-     planeNode.geometry?.materials = [material]
-     planeNode.eulerAngles.x = -.pi / 2
-     planeNode.position = SCNVector3(center.x, 0, center.z)
-     
-     return planeNode
+         let width = CGFloat(planeAnchor.transform.columns.3.x)
+         let height = CGFloat(planeAnchor.transform.columns.3.z)
+         let center = planeAnchor.center
+         let plane = SCNPlane(width: width, height: height)
+         let material = SCNMaterial()
+         material.diffuse.contents = UIColor.red
+         let planeNode = SCNNode(geometry: plane)
+         planeNode.geometry?.materials = [material]
+         planeNode.eulerAngles.x = -.pi / 2
+         planeNode.position = SCNVector3(center.x, 0, center.z)
+         
+         return planeNode
      }
      
      
      
      func findClosestAnchors() -> (ARAnchor, ARAnchor)? {
-     guard let anchors = sceneView.session.currentFrame?.anchors else{
-     return nil
-     }
-     var minDistance = Float.greatestFiniteMagnitude
-     var closePair: (ARAnchor,ARAnchor)?
-     
-     for i in 0..<anchors.count{
-     for j in i+1..<anchors.count{
-     let distance = distanceBetweenAnchors(anchor1: anchors[i], anchor2: anchors[j])
-     if distance < minDistance {
-     minDistance = distance
-     closePair = (anchors[i], anchors[j])
-     }
-     }
-     }
-     return closePair
+         guard let anchors = sceneView.session.currentFrame?.anchors else{return nil}
+         var minDistance = Float.greatestFiniteMagnitude
+         var closePair: (ARAnchor,ARAnchor)?
+         
+         for i in 0..<anchors.count{
+             for j in i+1..<anchors.count{
+                 let distance = distanceBetweenAnchors(anchor1: anchors[i], anchor2: anchors[j])
+                 if distance < minDistance {
+                 minDistance = distance
+                 closePair = (anchors[i], anchors[j])
+                 }
+             }
+         }
+         return closePair
      }
      
      
      func findClosestAnchorsFromCamera() -> ARAnchor? {
-     guard let anchors = sceneView.session.currentFrame?.anchors,
-     let cameraTransform = sceneView.session.currentFrame?.camera.transform else {
-     return nil
-     }
-     
-     var minDistance = Float.greatestFiniteMagnitude
-     var closestWallAnchor : ARAnchor?
-     
-     for anchor in anchors {
-     if let planeAnchor = anchor as? ARPlaneAnchor, planeAnchor.alignment == .vertical {
-     let distance = distance(transform1: cameraTransform, transform2: anchor.transform)
-     if distance < minDistance {
-     minDistance = distance
-     closestWallAnchor = anchor
-     }
-     }
-     }
-     return closestWallAnchor
+         guard let anchors = sceneView.session.currentFrame?.anchors,
+         let cameraTransform = sceneView.session.currentFrame?.camera.transform else {return nil}
+         
+         var minDistance = Float.greatestFiniteMagnitude
+         var closestWallAnchor : ARAnchor?
+         
+         for anchor in anchors {
+         if let planeAnchor = anchor as? ARPlaneAnchor, planeAnchor.alignment == .vertical {
+             let distance = distance(transform1: cameraTransform, transform2: anchor.transform)
+                 if distance < minDistance {
+                 minDistance = distance
+                 closestWallAnchor = anchor
+                 }
+             }
+         }
+         return closestWallAnchor
      }
      
      
      func distance(transform1:matrix_float4x4, transform2:matrix_float4x4) -> Float{
-     let dx = transform1.columns.3.x - transform2.columns.3.x
-     let dy = transform1.columns.3.y - transform2.columns.3.y
-     let dz = transform1.columns.3.z - transform2.columns.3.z
-     let distanceToAnchor = sqrt(dx*dx + dy*dy + dz*dz)
-     print("distance From Camera = \(distanceToAnchor)")
-     return sqrt(dx*dx + dy*dy + dz*dz)
+         let dx = transform1.columns.3.x - transform2.columns.3.x
+         let dy = transform1.columns.3.y - transform2.columns.3.y
+         let dz = transform1.columns.3.z - transform2.columns.3.z
+         let distanceToAnchor = sqrt(dx*dx + dy*dy + dz*dz)
+         print("distance From Camera = \(distanceToAnchor)")
+         return sqrt(dx*dx + dy*dy + dz*dz)
      }
      
      func distanceBetweenAnchors(anchor1: ARAnchor, anchor2: ARAnchor) -> Float {
-     let dx = anchor1.transform.columns.3.x - anchor2.transform.columns.3.x
-     let dy = anchor1.transform.columns.3.y - anchor2.transform.columns.3.y
-     let dz = anchor1.transform.columns.3.z - anchor2.transform.columns.3.z
-     let distanceBetweenAnchors = sqrt(dx*dx + dy*dy + dz*dz)
-     print("distance between Anchors = \(distanceBetweenAnchors)")
-     return sqrt(dx*dx + dy*dy + dz*dz)
+         let dx = anchor1.transform.columns.3.x - anchor2.transform.columns.3.x
+         let dy = anchor1.transform.columns.3.y - anchor2.transform.columns.3.y
+         let dz = anchor1.transform.columns.3.z - anchor2.transform.columns.3.z
+         let distanceBetweenAnchors = sqrt(dx*dx + dy*dy + dz*dz)
+         print("distance between Anchors = \(distanceBetweenAnchors)")
+         return sqrt(dx*dx + dy*dy + dz*dz)
      }
-     11111111111111111
-     */
+
     
     func session(_ session: ARSession, didFailWithError error: Error) {
         // Present an error message to the user
