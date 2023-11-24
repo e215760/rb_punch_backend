@@ -31,11 +31,10 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             }
         }
         
-        //1120
         // Set the view's delegate
         sceneView.delegate = self
         // Show statistics such as fps and timing information
-        sceneView.showsStatistics = true
+        //sceneView.showsStatistics = true
         // Create a new scene
         let scene = SCNScene()
         // Set the scene to the view
@@ -53,7 +52,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             
             isARRunning = !isARRunning
         }
-    *///123123
+    */
     
     override func viewWillAppear(_ animated: Bool) {
         
@@ -61,8 +60,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let configuration = ARWorldTrackingConfiguration()
         configuration.planeDetection = .vertical
         sceneView.session.run(configuration)
-        
-
     }
     
     override func viewWillDisappear(_ animated: Bool) {
@@ -78,20 +75,29 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     // Override to create and configure nodes for anchors added to the view's session.
     
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+        // create pointCloud
         guard let pointCloud = sceneView.session.currentFrame?.rawFeaturePoints else { return }
-        
         let points = pointCloud.points
         
-        // 모든 특징점을 표시하는 노드를 생성
+        // create parentnode
         let parent = SCNNode()
         
-        for i in stride(from: 0, to: points.count, by: 30)  {
-            // 각 특징점에 대한 SCNNode를 생성
+        //place the parentnode by stride()
+        //from => The starting value to use for the sequence
+        //to => end value to limit the sequence.
+        //by =>The amount to step by with each iteration.
+        // ##this function will skip some cloudPoint.##
+        for i in stride(from: 0, to: points.count, by: 35){
+            //print(points.count)
+            //print(points)
             let point = points[i]
             let node = SCNNode()
+            let material = SCNMaterial()
+            material.diffuse.contents = UIColor.yellow
             node.geometry = SCNSphere(radius: 0.0055) // 점의 크기를 설정
+            node.geometry?.firstMaterial = material
             node.position = SCNVector3(point.x, point.y, point.z)
-            
+
             // 생성된 노드를 부모 노드에 추가
             parent.addChildNode(node)
         }
@@ -103,20 +109,26 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         }
     }
     
-     func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
-     
+    func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
+        
          if let planeAnchor = anchor as? ARPlaneAnchor {
+                node.addChildNode(createWallNode(planeAnchor: planeAnchor))
              
-             let width = CGFloat(planeAnchor.transform.columns.3.x)
-             let height = CGFloat(planeAnchor.transform.columns.3.z)
-             let center = planeAnchor.center
-             let plane = SCNPlane(width: width, height: height)
-             let planeNode = SCNNode(geometry: plane)
-             planeNode.eulerAngles.x = -.pi / 2
-             planeNode.position = SCNVector3(center.x, 0, center.z)
+             //if planeAnchor.classification == .wall{
+                 //let width = CGFloat(planeAnchor.planeExtent.width)
+                 //let height = CGFloat(planeAnchor.planeExtent.height)
+                 //let center = planeAnchor.center
+                 //let plane = SCNPlane(width: width, height: height)
+                 //let planeNode = SCNNode(geometry: plane)
+
+                 //planeNode.eulerAngles.x = -.pi / 2
+                 //planeNode.position = SCNVector3(center.x, 0, center.z)
+                 
+                 //node.addChildNode(planeNode)
+             //}
              
-             node.addChildNode(planeNode)
-             
+             /*
+            카메라로부터 가장 가까운 벽의 엥커를 찾음
              if let closeAnchor = findClosestAnchorsFromCamera(){
                  let anchorForCamera = closeAnchor
                  print("Anchor 1: \(anchorForCamera)")
@@ -132,10 +144,12 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                                                      anchorForCamera.transform.columns.3.y,
                                                      anchorForCamera.transform.columns.3.z)
                  node.addChildNode(nodeForCamera)
-                 
-                 
              }
+             */
              
+             
+             /*
+            가장 가까운 벽엥커들을 찾아서 표시
              if let closePair = findClosestAnchors(){
                  let anchor1 = closePair.0
                  let anchor2 = closePair.1
@@ -143,7 +157,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                  //print("Anchor 2: \(anchor2)")
                  
                  let disBWA = distanceBetweenAnchors(anchor1: anchor1, anchor2: anchor2)
-                 
                  
                  //node1
                  let node1 = SCNNode()
@@ -174,25 +187,30 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                                              anchor2.transform.columns.3.z)
                  node.addChildNode(node2)
              }
+              */
          }
      }
      
      
      
-     func createWallNode(planeAnchor: ARPlaneAnchor) -> SCNNode {
-         let width = CGFloat(planeAnchor.transform.columns.3.x)
-         let height = CGFloat(planeAnchor.transform.columns.3.z)
-         let center = planeAnchor.center
-         let plane = SCNPlane(width: width, height: height)
-         let material = SCNMaterial()
-         material.diffuse.contents = UIColor.red
-         let planeNode = SCNNode(geometry: plane)
-         planeNode.geometry?.materials = [material]
-         planeNode.eulerAngles.x = -.pi / 2
-         planeNode.position = SCNVector3(center.x, 0, center.z)
-         
-         return planeNode
-     }
+    func createWallNode(planeAnchor: ARPlaneAnchor) -> SCNNode {
+        //if planeAnchor.classification == .wall{
+            let width = CGFloat(planeAnchor.planeExtent.width)
+            let height = CGFloat(planeAnchor.planeExtent.height)
+            let center = planeAnchor.center
+            let plane = SCNPlane(width: width, height: height)
+            print("From create wall node, width = \(width), height = \(height)")
+            print(planeAnchor)
+            let material = SCNMaterial()
+            material.diffuse.contents = UIColor.red
+            let planeNode = SCNNode(geometry: plane)
+            planeNode.geometry?.materials = [material]
+            planeNode.eulerAngles.x = -.pi / 2
+            planeNode.position = SCNVector3(center.x, 0, center.z)
+            return planeNode
+        //}
+        //return SCNNode()
+    }
      
      
      
@@ -239,7 +257,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
          let dy = transform1.columns.3.y - transform2.columns.3.y
          let dz = transform1.columns.3.z - transform2.columns.3.z
          let distanceToAnchor = sqrt(dx*dx + dy*dy + dz*dz)
-         print("distance From Camera = \(distanceToAnchor)")
+         //print("distance From Camera = \(distanceToAnchor)")
          return sqrt(dx*dx + dy*dy + dz*dz)
      }
      
@@ -248,7 +266,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
          let dy = anchor1.transform.columns.3.y - anchor2.transform.columns.3.y
          let dz = anchor1.transform.columns.3.z - anchor2.transform.columns.3.z
          let distanceBetweenAnchors = sqrt(dx*dx + dy*dy + dz*dz)
-         print("distance between Anchors = \(distanceBetweenAnchors)")
+         //print("distance between Anchors = \(distanceBetweenAnchors)")
          return sqrt(dx*dx + dy*dy + dz*dz)
      }
 
