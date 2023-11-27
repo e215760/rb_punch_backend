@@ -47,7 +47,7 @@ rawFeaturePointsでは情報量が足りないかもしれない。
 didAdd nodeはviewWillAppearで設定したconfigurationによって変わる。
 
 
-自分で作成した関数の説明は省略する。（多分名前を読めばわかる）
+### 自分で作成した関数の説明は省略する。（多分名前を読めばわかる）
 
 
 
