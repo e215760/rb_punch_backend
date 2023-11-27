@@ -3,7 +3,7 @@ BarrierVisonの障がい認識アルゴリズムを開発するリポジトリ
 
 [BarrierVison](https://github.com/e215402/RedBallPanchi)
 
-# override func viewDidLoad()
+## override func viewDidLoad()
 ここはViewがロードされる前に実行される（AR画面が表示される直前）
 ```
 Timer.scheduledTimer(withTimeInterval: 1330.0, repeats: true) { timer in
@@ -16,7 +16,7 @@ Timer.scheduledTimer(withTimeInterval: 1330.0, repeats: true) { timer in
 ```
 withTimeIntervalに設定した時間に全てのnodeを消す。
 
-# override func viewWillAppear(_ animated: Bool)
+## override func viewWillAppear(_ animated: Bool)
 
 ここはViewがローだされたときに実行される（AR画面が表示された時）
 ```
@@ -27,7 +27,7 @@ withTimeIntervalに設定した時間に全てのnodeを消す。
 ```
 を使ってsessionを起動させる。
 
-# func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval)
+## func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval)
 
 ここはRealTimeで処理する関数を使ってARを表示する。60FPSでUpdateされる。
 
@@ -40,7 +40,7 @@ PointCloudを用いたDepthデータ(深度データ)を処理をする、
 
 rawFeaturePointsでは情報量が足りないかもしれない。
 
-# func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor)
+## func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor)
 
 ここは新しいAnchorのためのSCNNodeを設置することができる場合のみUpdateされる。
 主にSCNNode()を用いて、rootNodeにaddChildNodeの場合に使う。（仮想の物体を置く、仮想の線を引くなど）
