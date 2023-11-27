@@ -80,7 +80,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         // create pointCloud with maxdistance
         guard let pointCloudBefore = sceneView.session.currentFrame?.rawFeaturePoints else { return }
-        let maxDistance: Float = 3.0
+        let maxDistance: Float = 3.5
         let pointCloud = pointCloudBefore.points.filter { point in
             let distance = simd_distance(cameraPosition, point)
             return distance <= maxDistance
@@ -88,8 +88,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         let points = pointCloud
         let countPoint = points.count
-        
-        
         var x : Float = 0.0
         var y : Float = 0.0
         var z : Float = 0.0
@@ -180,7 +178,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                 lowestDot = point.y
             }
         }
-        lowestDot = cameraTransform.columns.3.y
         //let obstacleHeight: Float = -0.75
         let obstaclePoints = heights.filter{ $0 > lowestDot}
         
