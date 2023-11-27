@@ -13,22 +13,30 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     @IBOutlet var arButton: UIButton!
     @IBOutlet var sceneView: ARSCNView!
+    //Text
+    @IBOutlet weak var textLowest: UITextField!
+    @IBOutlet weak var textView: UITextView!
+    @IBOutlet weak var textHeight: UITextField!
+    @IBOutlet weak var textObject: UITextField!
     
-    //1120
     //노드를 삭제하기 위해서 createnodes를 작성
     var createdNodes = [SCNNode]()
     var isARRunning = false
     
-    
-    //
-    //벽간의 각도계산을 위한 전역변수
-    var wallA = ARAnchor.self
-    var wallB = ARAnchor.self
+    // 전역변수
+    struct wall {
+        var anchor: ARAnchor
+    }
+    var wallA: wall?
+    var wallB: wall?
+    var isNext:Bool = true
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        //특정 시간이 지나면 저장되어있는 노드들을 삭제한다.
-        Timer.scheduledTimer(withTimeInterval: 3000.0, repeats: true) { timer in
+        
+        //delete all nodes in withTimeInterval
+        //withTimeInterval -> seconds
+        Timer.scheduledTimer(withTimeInterval: 1330.0, repeats: true) { timer in
             DispatchQueue.main.async {
                 for node in self.createdNodes {
                     node.removeFromParentNode()
@@ -37,172 +45,197 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             }
         }
         
-        // Set the view's delegate
         sceneView.delegate = self
-        // Show statistics such as fps and timing information
+        //sceneView.debugOptions = [ARSCNDebugOptions.showWorldOrigin]
         //sceneView.showsStatistics = true
-        // Create a new scene
         let scene = SCNScene()
-        // Set the scene to the view
         sceneView.scene = scene
     }
     
-    /*
-     @IBAction func arButtonTapped(_ sender: UIButton) {
-     if isARRunning {
-     sceneView.session.pause()
-     } else {
-     let configuration = ARWorldTrackingConfiguration()
-     sceneView.session.run(configuration)
-     }
-     
-     isARRunning = !isARRunning
-     }
-     */
     
     override func viewWillAppear(_ animated: Bool) {
-        
         super.viewWillAppear(animated)
+        
         let configuration = ARWorldTrackingConfiguration()
         configuration.planeDetection = .vertical
+        configuration.frameSemantics.insert(.sceneDepth)
         sceneView.session.run(configuration)
     }
     
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        
-        // Pause the view's session
         sceneView.session.pause()
     }
     
-    // MARK: - ARSCNViewDelegate
+    // MARK: setting renderers
     
     
-    // Override to create and configure nodes for anchors added to the view's session.
-    
+    //renderer update by TimeInterval -> it will update all Frames(60FPS)
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+        
         // create pointCloud
         guard let pointCloud = sceneView.session.currentFrame?.rawFeaturePoints else { return }
-        let points = pointCloud.points
         
         // create parentnode
         let parent = SCNNode()
         
+        /*
+        // create smoothedDepthMap
+        guard let frame = sceneView.session.currentFrame,
+              let depthData = frame.smoothedSceneDepth else{ return }
+        
+        let depthImage = depthData.depthMap
+        let depthWidth = CVPixelBufferGetWidth(depthImage)
+        let depthHeight = CVPixelBufferGetHeight(depthImage)
+        
+        // 깊이 이미지에서 픽셀 데이터 가져오기
+        let baseAddress = CVPixelBufferGetBaseAddress(depthImage)
+        let floatBuffer = baseAddress?.assumingMemoryBound(to: Float32.self)
+        
+        // 3D 점을 저장할 배열
+        var points3D = [SCNVector3]()
+        
+        // 각 픽셀에 대해
+        for y in 0..<depthHeight {
+            for x in 0..<depthWidth {
+                let depthValue = floatBuffer?[y * depthWidth + x]
+                
+                // 예제: 일정 깊이 값 이상인 경우에만 3D 점 생성
+                if let depthValue = depthValue, depthValue < 0.5 {
+                    // 픽셀 좌표를 3D 공간 좌표로 변환
+                    let point3D = sceneView.unprojectPoint(SCNVector3(x: Float(x), y: Float(y), z: depthValue))
+                    points3D.append(point3D)
+                }
+            }
+        }
+        
+        // points3D 배열에 있는 3D 점들을 이용하여 원하는 작업을 수행
+        // 예제: 3D 점을 시각적으로 표시
+        for point in points3D {
+            let sphereNode = SCNNode(geometry: SCNSphere(radius: 0.005))
+            sphereNode.position = point
+            parent.addChildNode(sphereNode)
+        }
+    */
+        
+        var x : Float = 0.0
+        var y : Float = 0.0
+        var z : Float = 0.0
+        var lowestDot : Float = 0.0
+        //get x,y,z in pointcloud
+        let points = pointCloud.points
+        let countPoint = points.count
+        
+        //sum x,y,z in pointcloud
+        for point in points{
+            x += Float(point.x)
+            y += Float(point.y)
+            z += Float(point.z)
+            if point.y <= lowestDot{
+                lowestDot = point.y
+            }
+        }
+        
+        //average x,y,z
+        let aveX = x/Float(countPoint)
+        let aveY = y/Float(countPoint)
+        let aveZ = z/Float(countPoint)
+        
+        //
+        if aveY < (lowestDot+0.05) {
+            let aveNode = SCNNode()
+            let aveMaterial = SCNMaterial()
+            aveMaterial.diffuse.contents = UIColor.red
+            aveNode.geometry = SCNSphere(radius: 0.01)
+            aveNode.geometry?.firstMaterial = aveMaterial
+            aveNode.position = SCNVector3(aveX,aveY,aveZ)
+            parent.addChildNode(aveNode)
+            DispatchQueue.main.async{
+                self.textObject.text = "OK"
+            }
+        }else{
+            DispatchQueue.main.async {
+                self.textObject.text = "some obstacles found "
+            }
+        }
+        
+
+        
         //place the parentnode by stride()
         //from => The starting value to use for the sequence
-        //to => end value to limit the sequence.
-        //by =>The amount to step by with each iteration.
-        // ##this function will skip some cloudPoint.##
-        for i in stride(from: 0, to: points.count, by: 35){
-            //print(points.count)
-            //print(points)
+        //to => end value to limit the sequence
+        //by =>The amount to step by with each iteration
+        //##this function will skip some cloudPoint##
+        for i in stride(from: 0, to: points.count, by: 50){
             let point = points[i]
             let node = SCNNode()
             let material = SCNMaterial()
             material.diffuse.contents = UIColor.yellow
-            node.geometry = SCNSphere(radius: 0.0055) // 점의 크기를 설정
+            node.geometry = SCNSphere(radius: 0.007)
             node.geometry?.firstMaterial = material
             node.position = SCNVector3(point.x, point.y, point.z)
-            
-            // 생성된 노드를 부모 노드에 추가
             parent.addChildNode(node)
         }
         
-        // 부모 노드를 sceneView에 추가하고, 생성한 노드를 배열에 저장
+        
         DispatchQueue.main.async {
             self.sceneView.scene.rootNode.addChildNode(parent)
             self.createdNodes.append(parent)
+            self.textLowest.text = "lowest = \(lowestDot)"
+            self.textHeight.text = "ave_height = \(aveY)"
         }
     }
     
+    //renderer update by find new ARAnchor and SCNNode
     func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
         
         if let planeAnchor = anchor as? ARPlaneAnchor {
             node.addChildNode(createWallNode(planeAnchor: planeAnchor))
+            DispatchQueue.main.async{
+                self.textView.text = "Find \(planeAnchor.classification)\n name = \(planeAnchor.identifier)\n  eulerAngles = \(node.eulerAngles)\n\n rotation = \(node.rotation)"
+            }
+        }
+        
+        //create line node
+        if wallA?.anchor != nil && wallB?.anchor != nil{
             
+            let nodeLine1 = SCNNode()
+            let nodeLine2 = SCNNode()
+            var lengthNode = SCNNode()
             
-            /*
-            let width = CGFloat(planeAnchor.planeExtent.width)
-            let height = CGFloat(planeAnchor.planeExtent.height)
-            let center = planeAnchor.center
-            let plane = SCNPlane(width: width, height: height)
-            let planeNode = SCNNode(geometry: plane)
-            print("This is a \(planeAnchor.classification), width = \(width), height = \(height)")
-            planeNode.eulerAngles.x = -.pi / 2
-            planeNode.position = SCNVector3(center.x, 0, center.z)
-            
-            node.addChildNode(planeNode)
-            */
-            
-            /*
-             //카메라로부터 가장 가까운 벽의 엥커를 찾음
-             if let closeAnchor = findClosestAnchorsFromCamera(){
-             let anchorForCamera = closeAnchor
-             print("Anchor 1: \(anchorForCamera)")
-             let nodeForCamera = SCNNode()
-             let materialForCamera = SCNMaterial()
-             materialForCamera.diffuse.contents = UIColor.red
-             nodeForCamera.geometry = SCNBox(width: 0.01,
-             height: 0.01,
-             length: 0.01,
-             chamferRadius: 0.0)
-             nodeForCamera.geometry?.materials = [materialForCamera]
-             nodeForCamera.position = SCNVector3(anchorForCamera.transform.columns.3.x,
-             anchorForCamera.transform.columns.3.y,
-             anchorForCamera.transform.columns.3.z)
-             node.addChildNode(nodeForCamera)
-             }
-             */
-            
-            
-            /*
-             가장 가까운 벽엥커들을 찾아서 표시
-             if let closePair = findClosestAnchors(){
-             let anchor1 = closePair.0
-             let anchor2 = closePair.1
-             //print("Anchor 1: \(anchor1)")
-             //print("Anchor 2: \(anchor2)")
-             
-             let disBWA = distanceBetweenAnchors(anchor1: anchor1, anchor2: anchor2)
-             
-             //node1
-             let node1 = SCNNode()
-             let material1 = SCNMaterial()
-             material1.diffuse.contents = UIColor.blue
-             node1.geometry = SCNBox(width: 0.1,
-             height: 0.1,
-             length: 0.1,
-             chamferRadius: 0.0)
-             node1.geometry?.materials = [material1]
-             node1.position = SCNVector3(anchor1.transform.columns.3.x,
-             anchor1.transform.columns.3.y,
-             anchor1.transform.columns.3.z)
-             node.addChildNode(node1)
-             
-             
-             //node2
-             let node2 = SCNNode()
-             let material2 = SCNMaterial()
-             material2.diffuse.contents = UIColor.red
-             node2.geometry = SCNBox(width: 0.1,
-             height: 0.1,
-             length: 0.1,
-             chamferRadius: 0.0)
-             node2.geometry?.materials = [material2]
-             node2.position = SCNVector3(anchor2.transform.columns.3.x,
-             anchor2.transform.columns.3.y,
-             anchor2.transform.columns.3.z)
-             node.addChildNode(node2)
-             }
-             */
+            if let transform1 = wallA?.anchor.transform, let transform2 = wallB?.anchor.transform{
+                nodeLine1.simdTransform = transform1
+                nodeLine2.simdTransform = transform2
+                
+                let lineGeometry = SCNGeometry.line(from: nodeLine1.position, to: nodeLine2.position)
+                let lineNode = SCNNode(geometry: lineGeometry)
+                sceneView.scene.rootNode.addChildNode(lineNode)
+                
+                //create Text node
+                let length = distance(transform1: transform1, transform2: transform2)
+                let lengthText = "\(String(format: "%.2f", length))m"
+                let textGeometry = SCNText(string: lengthText, extrusionDepth: 0.01)
+                textGeometry.font = UIFont.systemFont(ofSize: 0.1)
+                textGeometry.flatness = 0.1
+                lengthNode = SCNNode(geometry: textGeometry)
+                lengthNode.position = SCNVector3((nodeLine1.position.x+nodeLine2.position.x)/2, -0.9, (nodeLine1.position.z + nodeLine2.position.z)/2)
+                //lengthNode.position = nodeLine1.position
+                let billboardConstraint = SCNBillboardConstraint()
+                lengthNode.constraints = [billboardConstraint]
+                
+                sceneView.scene.rootNode.addChildNode(lengthNode)
+            }
         }
     }
     
     
-    func session(_ session: ARSession, didFailWithError error: Error) {
+    func session(_ session: ARSession ,didFailWithError error: Error) {
         // Present an error message to the user
         
     }
+    
+
+    
     
     func sessionWasInterrupted(_ session: ARSession) {
         // Inform the user that the session has been interrupted, for example, by presenting an overlay
@@ -216,26 +249,34 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     
     
-    // MARK: help function
+    // MARK: Useful(created) functions
     
     func createWallNode(planeAnchor: ARPlaneAnchor) -> SCNNode {
         let width = CGFloat(planeAnchor.planeExtent.width)
         let height = CGFloat(planeAnchor.planeExtent.height)
         let center = planeAnchor.center
         let plane = SCNPlane(width: width, height: height)
-        print("Find \(planeAnchor.classification), width = \(width), height = \(height)")
-        print(planeAnchor)
         let material = SCNMaterial()
         material.diffuse.contents = UIColor.red
+        
         let planeNode = SCNNode(geometry: plane)
         planeNode.geometry?.materials = [material]
-        planeNode.eulerAngles.x = -.pi / 2
+        planeNode.eulerAngles.x = -.pi / 2 // set the angle to attach to the wall
         planeNode.position = SCNVector3(center.x, 0, center.z)
+        
+        
+        addWall(anchor: planeAnchor)
+        print("wallA = \(wallA?.anchor) \n\nwallB = \(wallB?.anchor))\n\n")
+        
+        DispatchQueue.main.async {
+            self.textView.text = "Find \(planeAnchor.classification)\n\n width = \(width)\n height = \(height)\n\n rotation = \(planeNode.rotation)"
+        }
+        //print("Find \(planeAnchor.classification)\n\n width = \(width)\n height = \(height)\n\n rotation = \(planeNode.rotation)")
         return planeNode
         }
     
     
-    
+    //return ARAnchor.0, ARAnchor.1
     func findClosestAnchors() -> (ARAnchor, ARAnchor)? {
         guard let anchors = sceneView.session.currentFrame?.anchors else{return nil}
         var minDistance = Float.greatestFiniteMagnitude
@@ -253,6 +294,17 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         return closePair
     }
     
+    func addWall (anchor : ARAnchor){
+
+        if isNext{
+            wallA = wall(anchor: anchor)
+            print("change wallA")
+        }else{
+            wallB = wall(anchor: anchor)
+            print("change wallB")
+        }
+        isNext = !isNext
+    }
     
     func findClosestAnchorsFromCamera() -> ARAnchor? {
         guard let anchors = sceneView.session.currentFrame?.anchors,
@@ -279,7 +331,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let dy = transform1.columns.3.y - transform2.columns.3.y
         let dz = transform1.columns.3.z - transform2.columns.3.z
         let distanceToAnchor = sqrt(dx*dx + dy*dy + dz*dz)
-        //print("distance From Camera = \(distanceToAnchor)")
+        print("distance From Camera = \(distanceToAnchor)")
         return sqrt(dx*dx + dy*dy + dz*dz)
     }
     
@@ -288,10 +340,21 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let dy = anchor1.transform.columns.3.y - anchor2.transform.columns.3.y
         let dz = anchor1.transform.columns.3.z - anchor2.transform.columns.3.z
         let distanceBetweenAnchors = sqrt(dx*dx + dy*dy + dz*dz)
-        //print("distance between Anchors = \(distanceBetweenAnchors)")
+        print("distance between Anchors = \(distanceBetweenAnchors)")
         return sqrt(dx*dx + dy*dy + dz*dz)
     }
-    
-    
-    
+
+}
+
+
+// MARK: extensions
+
+extension SCNGeometry {
+    class func line(from vector1: SCNVector3, to vector2: SCNVector3) -> SCNGeometry {
+        let indices: [UInt32] = [0, 1]
+        let source = SCNGeometrySource(vertices: [vector1, vector2])
+        let element = SCNGeometryElement(indices: indices, primitiveType: .line)
+
+        return SCNGeometry(sources: [source], elements: [element])
+    }
 }
