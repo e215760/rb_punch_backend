@@ -36,7 +36,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         //delete all nodes in withTimeInterval
         //withTimeInterval -> seconds
-        Timer.scheduledTimer(withTimeInterval: 1330.0, repeats: true) { timer in
+        Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { timer in
             DispatchQueue.main.async {
                 for node in self.createdNodes {
                     node.removeFromParentNode()
@@ -73,13 +73,32 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     //renderer update by TimeInterval -> it will update all Frames(60FPS)
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
         
-        // create pointCloud
-        guard let pointCloud = sceneView.session.currentFrame?.rawFeaturePoints else { return }
+        //setting for pointCloud maxdistance
+        guard let cameraTransform = sceneView.session.currentFrame?.camera.transform else { return }
+        //get initial camera position
+        let cameraPosition = simd_make_float3(cameraTransform.columns.3.x, cameraTransform.columns.3.y, cameraTransform.columns.3.z)
+        
+        // create pointCloud with maxdistance
+        guard let pointCloudBefore = sceneView.session.currentFrame?.rawFeaturePoints else { return }
+        let maxDistance: Float = 3.0
+        let pointCloud = pointCloudBefore.points.filter { point in
+            let distance = simd_distance(cameraPosition, point)
+            return distance <= maxDistance
+        }
+        
+        let points = pointCloud
+        let countPoint = points.count
+        
+        
+        var x : Float = 0.0
+        var y : Float = 0.0
+        var z : Float = 0.0
+        var lowestDot : Float = 0.0
         
         // create parentnode
         let parent = SCNNode()
         
-        /*
+        /* //try to use smoothed-Depth-map
         // create smoothedDepthMap
         guard let frame = sceneView.session.currentFrame,
               let depthData = frame.smoothedSceneDepth else{ return }
@@ -118,14 +137,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         }
     */
         
-        var x : Float = 0.0
-        var y : Float = 0.0
-        var z : Float = 0.0
-        var lowestDot : Float = 0.0
-        //get x,y,z in pointcloud
-        let points = pointCloud.points
-        let countPoint = points.count
-        
+        /*
+        // try to use average of height
         //sum x,y,z in pointcloud
         for point in points{
             x += Float(point.x)
@@ -158,9 +171,35 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                 self.textObject.text = "some obstacles found "
             }
         }
+         */
+        
+        //try to use point.count
+        let heights = pointCloud.map{$0.y}
+        for point in points{
+            if point.y <= lowestDot{
+                lowestDot = point.y
+            }
+        }
+        lowestDot = cameraTransform.columns.3.y
+        //let obstacleHeight: Float = -0.75
+        let obstaclePoints = heights.filter{ $0 > lowestDot}
+        
+        let obstacleCount: Int = 150
+        if obstaclePoints.count > obstacleCount{
+            DispatchQueue.main.async {
+                self.textHeight.text = "Obstacle points =\(obstaclePoints.count)"
+                self.textObject.text = "Obstacles found obstacleCount = \(obstacleCount)"
+            }
+        }else{
+            DispatchQueue.main.async{
+                self.textHeight.text = "Obstacle points =\(obstaclePoints.count)"
+                self.textObject.text = "OK! obstacleCount = \(obstacleCount)"
+            }
+        }
         
 
         
+        /*
         //place the parentnode by stride()
         //from => The starting value to use for the sequence
         //to => end value to limit the sequence
@@ -176,18 +215,20 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             node.position = SCNVector3(point.x, point.y, point.z)
             parent.addChildNode(node)
         }
+        */
         
-        
+        //async main
         DispatchQueue.main.async {
             self.sceneView.scene.rootNode.addChildNode(parent)
             self.createdNodes.append(parent)
             self.textLowest.text = "lowest = \(lowestDot)"
-            self.textHeight.text = "ave_height = \(aveY)"
+            //self.textHeight.text = "ave_height = \(aveY)"
         }
     }
     
     //renderer update by find new ARAnchor and SCNNode
     func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
+        let parent = SCNNode()
         
         if let planeAnchor = anchor as? ARPlaneAnchor {
             node.addChildNode(createWallNode(planeAnchor: planeAnchor))
@@ -198,7 +239,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         //create line node
         if wallA?.anchor != nil && wallB?.anchor != nil{
-            
             let nodeLine1 = SCNNode()
             let nodeLine2 = SCNNode()
             var lengthNode = SCNNode()
@@ -209,7 +249,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                 
                 let lineGeometry = SCNGeometry.line(from: nodeLine1.position, to: nodeLine2.position)
                 let lineNode = SCNNode(geometry: lineGeometry)
-                sceneView.scene.rootNode.addChildNode(lineNode)
+                //sceneView.scene.rootNode.addChildNode(lineNode)
                 
                 //create Text node
                 let length = distance(transform1: transform1, transform2: transform2)
@@ -219,11 +259,18 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                 textGeometry.flatness = 0.1
                 lengthNode = SCNNode(geometry: textGeometry)
                 lengthNode.position = SCNVector3((nodeLine1.position.x+nodeLine2.position.x)/2, -0.9, (nodeLine1.position.z + nodeLine2.position.z)/2)
-                //lengthNode.position = nodeLine1.position
                 let billboardConstraint = SCNBillboardConstraint()
                 lengthNode.constraints = [billboardConstraint]
                 
-                sceneView.scene.rootNode.addChildNode(lengthNode)
+                //sceneView.scene.rootNode.addChildNode(lengthNode)
+                
+                parent.addChildNode(lineNode)
+                parent.addChildNode(lengthNode)
+                DispatchQueue.main.async{
+                    self.sceneView.scene.rootNode.addChildNode(parent)
+                    self.createdNodes.append(parent)
+                    
+                }
             }
         }
     }
@@ -266,7 +313,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         
         addWall(anchor: planeAnchor)
-        print("wallA = \(wallA?.anchor) \n\nwallB = \(wallB?.anchor))\n\n")
         
         DispatchQueue.main.async {
             self.textView.text = "Find \(planeAnchor.classification)\n\n width = \(width)\n height = \(height)\n\n rotation = \(planeNode.rotation)"
