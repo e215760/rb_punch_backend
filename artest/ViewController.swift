@@ -34,8 +34,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        //delete all nodes in withTimeInterval
-        //withTimeInterval -> seconds
         Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { timer in
             DispatchQueue.main.async {
                 for node in self.createdNodes {
@@ -55,7 +53,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        
         let configuration = ARWorldTrackingConfiguration()
         configuration.planeDetection = .vertical
         configuration.frameSemantics.insert(.sceneDepth)
@@ -69,118 +66,58 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     // MARK: setting renderers
     
-    
-    //renderer update by TimeInterval -> it will update all Frames(60FPS)
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
         
+        //guard let cameraPointOfView = sceneView.pointOfView?.rotation else{ return }
+
         //setting for pointCloud maxdistance
         guard let cameraTransform = sceneView.session.currentFrame?.camera.transform else { return }
         //get initial camera position
         let cameraPosition = simd_make_float3(cameraTransform.columns.3.x, cameraTransform.columns.3.y, cameraTransform.columns.3.z)
         
-        // create pointCloud with maxdistance
+        //set MaxDistance for pointCloud
         guard let pointCloudBefore = sceneView.session.currentFrame?.rawFeaturePoints else { return }
-        let maxDistance: Float = 6.0
+        let maxDistance: Float = 5.0
         let pointCloud = pointCloudBefore.points.filter { point in
             let distance = simd_distance(cameraPosition, point)
             return distance <= maxDistance
         }
         
+        
         let points = pointCloud
         let countPoint = points.count
-        var x : Float = 0.0
-        var y : Float = 0.0
-        var z : Float = 0.0
-        var lowestDot : Float = 0.0
+        var lowestDot : Float = Float.infinity
         
         // create parentnode
         let parent = SCNNode()
         
-        /* //try to use smoothed-Depth-map
-        // create smoothedDepthMap
-        guard let frame = sceneView.session.currentFrame,
-              let depthData = frame.smoothedSceneDepth else{ return }
-        
-        let depthImage = depthData.depthMap
-        let depthWidth = CVPixelBufferGetWidth(depthImage)
-        let depthHeight = CVPixelBufferGetHeight(depthImage)
-        
-        // 깊이 이미지에서 픽셀 데이터 가져오기
-        let baseAddress = CVPixelBufferGetBaseAddress(depthImage)
-        let floatBuffer = baseAddress?.assumingMemoryBound(to: Float32.self)
-        
-        // 3D 점을 저장할 배열
-        var points3D = [SCNVector3]()
-        
-        // 각 픽셀에 대해
-        for y in 0..<depthHeight {
-            for x in 0..<depthWidth {
-                let depthValue = floatBuffer?[y * depthWidth + x]
-                
-                // 예제: 일정 깊이 값 이상인 경우에만 3D 점 생성
-                if let depthValue = depthValue, depthValue < 0.5 {
-                    // 픽셀 좌표를 3D 공간 좌표로 변환
-                    let point3D = sceneView.unprojectPoint(SCNVector3(x: Float(x), y: Float(y), z: depthValue))
-                    points3D.append(point3D)
-                }
-            }
-        }
-        
-        // points3D 배열에 있는 3D 점들을 이용하여 원하는 작업을 수행
-        // 예제: 3D 점을 시각적으로 표시
-        for point in points3D {
-            let sphereNode = SCNNode(geometry: SCNSphere(radius: 0.005))
-            sphereNode.position = point
-            parent.addChildNode(sphereNode)
-        }
-    */
-        
+        //try with point.count
         /*
-        // try to use average of height
-        //sum x,y,z in pointcloud
+        //get lowest Heights
         for point in points{
-            x += Float(point.x)
-            y += Float(point.y)
-            z += Float(point.z)
             if point.y <= lowestDot{
                 lowestDot = point.y
             }
         }
+        */
         
-        //average x,y,z
-        let aveX = x/Float(countPoint)
-        let aveY = y/Float(countPoint)
-        let aveZ = z/Float(countPoint)
-        
-        //
-        if aveY < (lowestDot+0.05) {
-            let aveNode = SCNNode()
-            let aveMaterial = SCNMaterial()
-            aveMaterial.diffuse.contents = UIColor.red
-            aveNode.geometry = SCNSphere(radius: 0.01)
-            aveNode.geometry?.firstMaterial = aveMaterial
-            aveNode.position = SCNVector3(aveX,aveY,aveZ)
-            parent.addChildNode(aveNode)
-            DispatchQueue.main.async{
-                self.textObject.text = "OK"
-            }
-        }else{
-            DispatchQueue.main.async {
-                self.textObject.text = "some obstacles found "
-            }
-        }
-         */
-        
-        //try to use point.count
+        // Regruoup height
         let heights = pointCloud.map{$0.y}
-        for point in points{
-            if point.y <= lowestDot{
-                lowestDot = point.y
-            }
-        }
-        //let obstacleHeight: Float = -0.75
-        let obstaclePoints = heights.filter{ $0 > (lowestDot+0.05)}
+
+        //set moving average
+        //return height if height > avg otherwise nil
+        //nil will delete by compactMap()
+        //obstaclePoint will have just (height > avg) point array
+        let ave = movingAverage(size: 200)
+        let obstaclePoints = heights.map{ height -> Float? in
+            let avg = ave.add(height)
+            return height > avg ? height: nil
+        }.compactMap{$0}
         
+        //Percentile
+        
+        
+        //let obstaclePoints = heights.filter{ $0 > (lowestDot+0.1)}
         let obstacleCount: Int = 150
         if obstaclePoints.count > obstacleCount{
             DispatchQueue.main.async {
@@ -190,7 +127,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         }else{
             DispatchQueue.main.async{
                 self.textHeight.text = "Obstacle points =\(obstaclePoints.count)"
-                self.textObject.text = "OK! obstacleCount = \(obstacleCount)"
+                self.textObject.text = "OK!             obstacleCount = \(obstacleCount)"
             }
         }
         
@@ -198,10 +135,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         /*
         //place the parentnode by stride()
-        //from => The starting value to use for the sequence
-        //to => end value to limit the sequence
-        //by =>The amount to step by with each iteration
-        //##this function will skip some cloudPoint##
         for i in stride(from: 0, to: points.count, by: 50){
             let point = points[i]
             let node = SCNNode()
@@ -214,7 +147,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         }
         */
         
-        //async main
         DispatchQueue.main.async {
             self.sceneView.scene.rootNode.addChildNode(parent)
             self.createdNodes.append(parent)
@@ -223,7 +155,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         }
     }
     
-    //renderer update by find new ARAnchor and SCNNode
     func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
         let parent = SCNNode()
         
@@ -258,8 +189,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                 lengthNode.position = SCNVector3((nodeLine1.position.x+nodeLine2.position.x)/2, -0.9, (nodeLine1.position.z + nodeLine2.position.z)/2)
                 let billboardConstraint = SCNBillboardConstraint()
                 lengthNode.constraints = [billboardConstraint]
-                
                 //sceneView.scene.rootNode.addChildNode(lengthNode)
+            
                 
                 parent.addChildNode(lineNode)
                 parent.addChildNode(lengthNode)
@@ -388,6 +319,29 @@ class ViewController: UIViewController, ARSCNViewDelegate {
 }
 
 
+// MARK: Classes
+
+class movingAverage{
+    private var size: Int
+    private var history: [Float] = []
+    
+    init(size:Int){
+        self.size = size
+    }
+    func add(_ value: Float) -> Float{
+        history.append(value)
+        if history.count > size{
+            history.removeFirst()
+        }
+        return average()
+    }
+    
+    func average() -> Float{
+        return history.reduce(0, +) / Float(history.count)
+    }
+}
+
+
 // MARK: extensions
 
 extension SCNGeometry {
@@ -397,5 +351,15 @@ extension SCNGeometry {
         let element = SCNGeometryElement(indices: indices, primitiveType: .line)
 
         return SCNGeometry(sources: [source], elements: [element])
+    }
+}
+
+
+
+extension Array where Element: Numeric & Comparable {
+    func percentile(_ percentile: Double) -> Element? {
+        let sorted = self.sorted()
+        let index = Int(Double(count) * percentile / 100.0)
+        return index < count ? sorted[index] : nil
     }
 }
