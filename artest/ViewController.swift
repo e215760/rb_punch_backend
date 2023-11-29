@@ -47,7 +47,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         sceneView.delegate = self
         //sceneView.debugOptions = [ARSCNDebugOptions.showWorldOrigin]
-        //sceneView.showsStatistics = true
+        sceneView.showsStatistics = true
         let scene = SCNScene()
         sceneView.scene = scene
     }
@@ -80,7 +80,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         // create pointCloud with maxdistance
         guard let pointCloudBefore = sceneView.session.currentFrame?.rawFeaturePoints else { return }
-        let maxDistance: Float = 3.5
+        let maxDistance: Float = 6.0
         let pointCloud = pointCloudBefore.points.filter { point in
             let distance = simd_distance(cameraPosition, point)
             return distance <= maxDistance
@@ -179,7 +179,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             }
         }
         //let obstacleHeight: Float = -0.75
-        let obstaclePoints = heights.filter{ $0 > lowestDot}
+        let obstaclePoints = heights.filter{ $0 > (lowestDot+0.05)}
         
         let obstacleCount: Int = 150
         if obstaclePoints.count > obstacleCount{
@@ -252,8 +252,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                 let length = distance(transform1: transform1, transform2: transform2)
                 let lengthText = "\(String(format: "%.2f", length))m"
                 let textGeometry = SCNText(string: lengthText, extrusionDepth: 0.01)
-                textGeometry.font = UIFont.systemFont(ofSize: 0.1)
-                textGeometry.flatness = 0.1
+                textGeometry.font = UIFont.systemFont(ofSize: 0.2)
+                textGeometry.flatness = 1
                 lengthNode = SCNNode(geometry: textGeometry)
                 lengthNode.position = SCNVector3((nodeLine1.position.x+nodeLine2.position.x)/2, -0.9, (nodeLine1.position.z + nodeLine2.position.z)/2)
                 let billboardConstraint = SCNBillboardConstraint()
@@ -279,8 +279,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     }
     
 
-    
-    
     func sessionWasInterrupted(_ session: ARSession) {
         // Inform the user that the session has been interrupted, for example, by presenting an overlay
         
