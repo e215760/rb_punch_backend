@@ -19,10 +19,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     @IBOutlet weak var textHeight: UITextField!
     @IBOutlet weak var textObject: UITextField!
     
-    //노드를 삭제하기 위해서 createnodes를 작성
-    var createdNodes = [SCNNode]()
-    var isARRunning = false
-    
     // 전역변수
     struct wall {
         var anchor: ARAnchor
@@ -30,6 +26,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     var wallA: wall?
     var wallB: wall?
     var isNext:Bool = true
+    //노드를 삭제를 위한 createnodes
+    var createdNodes = [SCNNode]()
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -84,9 +82,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         }
         
         
-        let points = pointCloud
-        let countPoint = points.count
-        var lowestDot : Float = Float.infinity
+        //let points = pointCloud
+        //var lowestDot : Float = Float.infinity
         
         // create parentnode
         let parent = SCNNode()
@@ -108,8 +105,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         //return height if height > avg otherwise nil
         //nil will delete by compactMap()
         //obstaclePoint will have just (height > avg) point array
-        let ave = movingAverage(size: 200)
-        let obstaclePoints = heights.map{ height -> Float? in
+        let ave = movingAverage(size: 32768)
+        let obstaclePoints = heights.map{ height in
             let avg = ave.add(height)
             return height > avg ? height: nil
         }.compactMap{$0}
@@ -118,16 +115,16 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         
         //let obstaclePoints = heights.filter{ $0 > (lowestDot+0.1)}
-        let obstacleCount: Int = 150
-        if obstaclePoints.count > obstacleCount{
+        let obstacleLimit: Int = 100
+        if obstaclePoints.count > obstacleLimit{
             DispatchQueue.main.async {
                 self.textHeight.text = "Obstacle points =\(obstaclePoints.count)"
-                self.textObject.text = "Obstacles found obstacleCount = \(obstacleCount)"
+                self.textObject.text = "Obstacles found"
             }
         }else{
             DispatchQueue.main.async{
                 self.textHeight.text = "Obstacle points =\(obstaclePoints.count)"
-                self.textObject.text = "OK!             obstacleCount = \(obstacleCount)"
+                self.textObject.text = "OK!            "
             }
         }
         
@@ -150,7 +147,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         DispatchQueue.main.async {
             self.sceneView.scene.rootNode.addChildNode(parent)
             self.createdNodes.append(parent)
-            self.textLowest.text = "lowest = \(lowestDot)"
+            self.textLowest.text = "obstacle limit = \(obstacleLimit)"
             //self.textHeight.text = "ave_height = \(aveY)"
         }
     }
@@ -224,6 +221,18 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     // MARK: Useful(created) functions
     
+    func createSpearNode(anchor: ARAnchor) -> SCNNode{
+        let node = SCNNode()
+        let material = SCNMaterial()
+        material.diffuse.contents = UIColor.yellow
+        node.geometry = SCNSphere(radius: 0.007)
+        node.geometry?.firstMaterial = material
+        node.position = SCNVector3(point.x, point.y, point.z)
+        parent.addChildNode(node)
+        
+        return spear
+    }
+    
     func createWallNode(planeAnchor: ARPlaneAnchor) -> SCNNode {
         let width = CGFloat(planeAnchor.planeExtent.width)
         let height = CGFloat(planeAnchor.planeExtent.height)
@@ -270,10 +279,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
 
         if isNext{
             wallA = wall(anchor: anchor)
-            print("change wallA")
         }else{
             wallB = wall(anchor: anchor)
-            print("change wallB")
         }
         isNext = !isNext
     }
@@ -302,18 +309,13 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let dx = transform1.columns.3.x - transform2.columns.3.x
         let dy = transform1.columns.3.y - transform2.columns.3.y
         let dz = transform1.columns.3.z - transform2.columns.3.z
-        let distanceToAnchor = sqrt(dx*dx + dy*dy + dz*dz)
-        print("distance From Camera = \(distanceToAnchor)")
         return sqrt(dx*dx + dy*dy + dz*dz)
     }
     
     func distanceBetweenAnchors(anchor1: ARAnchor, anchor2: ARAnchor) -> Float {
-        let dx = anchor1.transform.columns.3.x - anchor2.transform.columns.3.x
-        let dy = anchor1.transform.columns.3.y - anchor2.transform.columns.3.y
-        let dz = anchor1.transform.columns.3.z - anchor2.transform.columns.3.z
-        let distanceBetweenAnchors = sqrt(dx*dx + dy*dy + dz*dz)
-        print("distance between Anchors = \(distanceBetweenAnchors)")
-        return sqrt(dx*dx + dy*dy + dz*dz)
+        let position1 = anchor1.transform.columns.3
+        let position2 = anchor2.transform.columns.3
+        return simd_distance(position1, position2)
     }
 
 }
