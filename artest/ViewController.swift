@@ -111,8 +111,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             DispatchQueue.main.async{
                 self.textView.text = "Find \(planeAnchor.classification)\n name = \(planeAnchor.identifier)\n  eulerAngles = \(node.eulerAngles)"
             }
-            nodeRemover(interval: 0, repeats: false, type: "line")
-            nodeRemover(interval: 0, repeats: false, type: "length")
+            //nodeRemover(interval: 0, repeats: false, type: "line")
+            //nodeRemover(interval: 0, repeats: false, type: "length")
         }
         
         if wallA?.anchor != nil && wallB?.anchor != nil{
