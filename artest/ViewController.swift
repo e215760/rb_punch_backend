@@ -11,7 +11,6 @@ import ARKit
 
 class ViewController: UIViewController, ARSCNViewDelegate {
     
-    @IBOutlet var arButton: UIButton!
     @IBOutlet var sceneView: ARSCNView!
     //Text
     @IBOutlet weak var textLowest: UITextField!
@@ -31,15 +30,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-        Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { timer in
-            DispatchQueue.main.async {
-                for node in self.createdNodes {
-                    node.removeFromParentNode()
-                }
-                self.createdNodes.removeAll()
-            }
-        }
+        //nodeRemover(interval: 10, repeats: true, type: "all")
         
         sceneView.delegate = self
         //sceneView.debugOptions = [ARSCNDebugOptions.showWorldOrigin]
@@ -57,6 +48,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         sceneView.session.run(configuration)
     }
     
+    
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         sceneView.session.pause()
@@ -66,57 +58,32 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
         
-        //guard let cameraPointOfView = sceneView.pointOfView?.rotation else{ return }
-
-        //setting for pointCloud maxdistance
-        guard let cameraTransform = sceneView.session.currentFrame?.camera.transform else { return }
-        //get initial camera position
-        let cameraPosition = simd_make_float3(cameraTransform.columns.3.x, cameraTransform.columns.3.y, cameraTransform.columns.3.z)
         
-        //set MaxDistance for pointCloud
+        guard let cameraTransform = sceneView.session.currentFrame?.camera.transform else { return }
+        let cameraPosition = simd_make_float3(cameraTransform.columns.3.x, cameraTransform.columns.3.y, cameraTransform.columns.3.z)
         guard let pointCloudBefore = sceneView.session.currentFrame?.rawFeaturePoints else { return }
-        let maxDistance: Float = 5.0
+        let maxDistance: Float = 4.5
         let pointCloud = pointCloudBefore.points.filter { point in
             let distance = simd_distance(cameraPosition, point)
-            return distance <= maxDistance
+            return distance <= maxDistance && point.y <= (cameraPosition.y-0.3)
         }
         
         
-        //let points = pointCloud
         //var lowestDot : Float = Float.infinity
-        
-        // create parentnode
-        let parent = SCNNode()
-        
-        //try with point.count
-        /*
-        //get lowest Heights
-        for point in points{
-            if point.y <= lowestDot{
-                lowestDot = point.y
-            }
-        }
-        */
-        
-        // Regruoup height
+    
         let heights = pointCloud.map{$0.y}
+        let ave = movingAverage(size: 8292)//高くすると反応が遅くなる
 
-        //set moving average
-        //return height if height > avg otherwise nil
-        //nil will delete by compactMap()
-        //obstaclePoint will have just (height > avg) point array
-        let ave = movingAverage(size: 32768)
-        let obstaclePoints = heights.map{ height in
+        let obstacleIndices = heights.enumerated().compactMap { index, height in
             let avg = ave.add(height)
-            return height > avg ? height: nil
-        }.compactMap{$0}
+            return height > avg ? index : nil
+        }
+        let obstaclePoints = obstacleIndices.map { pointCloud[$0] }
+
         
-        //Percentile
-        
-        
-        //let obstaclePoints = heights.filter{ $0 > (lowestDot+0.1)}
-        let obstacleLimit: Int = 100
+        let obstacleLimit: Int = 50
         if obstaclePoints.count > obstacleLimit{
+            self.sceneView.scene.rootNode.addChildNode(createSpearNodeWithStride(pointCloud: obstaclePoints))
             DispatchQueue.main.async {
                 self.textHeight.text = "Obstacle points =\(obstaclePoints.count)"
                 self.textObject.text = "Obstacles found"
@@ -127,56 +94,41 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                 self.textObject.text = "OK!            "
             }
         }
-        
 
         
-        /*
-        //place the parentnode by stride()
-        for i in stride(from: 0, to: points.count, by: 50){
-            let point = points[i]
-            let node = SCNNode()
-            let material = SCNMaterial()
-            material.diffuse.contents = UIColor.yellow
-            node.geometry = SCNSphere(radius: 0.007)
-            node.geometry?.firstMaterial = material
-            node.position = SCNVector3(point.x, point.y, point.z)
-            parent.addChildNode(node)
-        }
-        */
-        
         DispatchQueue.main.async {
-            self.sceneView.scene.rootNode.addChildNode(parent)
-            self.createdNodes.append(parent)
             self.textLowest.text = "obstacle limit = \(obstacleLimit)"
-            //self.textHeight.text = "ave_height = \(aveY)"
         }
     }
     
+    
+    
     func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
-        let parent = SCNNode()
         
         if let planeAnchor = anchor as? ARPlaneAnchor {
+            
             node.addChildNode(createWallNode(planeAnchor: planeAnchor))
             DispatchQueue.main.async{
-                self.textView.text = "Find \(planeAnchor.classification)\n name = \(planeAnchor.identifier)\n  eulerAngles = \(node.eulerAngles)\n\n rotation = \(node.rotation)"
+                self.textView.text = "Find \(planeAnchor.classification)\n name = \(planeAnchor.identifier)\n  eulerAngles = \(node.eulerAngles)"
             }
+            nodeRemover(interval: 0, repeats: false, type: "line")
+            nodeRemover(interval: 0, repeats: false, type: "length")
         }
         
-        //create line node
         if wallA?.anchor != nil && wallB?.anchor != nil{
             let nodeLine1 = SCNNode()
             let nodeLine2 = SCNNode()
             var lengthNode = SCNNode()
             
             if let transform1 = wallA?.anchor.transform, let transform2 = wallB?.anchor.transform{
+                
                 nodeLine1.simdTransform = transform1
                 nodeLine2.simdTransform = transform2
                 
                 let lineGeometry = SCNGeometry.line(from: nodeLine1.position, to: nodeLine2.position)
                 let lineNode = SCNNode(geometry: lineGeometry)
-                //sceneView.scene.rootNode.addChildNode(lineNode)
                 
-                //create Text node
+                
                 let length = distance(transform1: transform1, transform2: transform2)
                 let lengthText = "\(String(format: "%.2f", length))m"
                 let textGeometry = SCNText(string: lengthText, extrusionDepth: 0.01)
@@ -186,16 +138,15 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                 lengthNode.position = SCNVector3((nodeLine1.position.x+nodeLine2.position.x)/2, -0.9, (nodeLine1.position.z + nodeLine2.position.z)/2)
                 let billboardConstraint = SCNBillboardConstraint()
                 lengthNode.constraints = [billboardConstraint]
-                //sceneView.scene.rootNode.addChildNode(lengthNode)
             
+                lineNode.name = "line"
+                createdNodes.append(lineNode)
+                sceneView.scene.rootNode.addChildNode(lineNode)
                 
-                parent.addChildNode(lineNode)
-                parent.addChildNode(lengthNode)
-                DispatchQueue.main.async{
-                    self.sceneView.scene.rootNode.addChildNode(parent)
-                    self.createdNodes.append(parent)
-                    
-                }
+                lengthNode.name = "length"
+                createdNodes.append(lengthNode)
+                sceneView.scene.rootNode.addChildNode(lengthNode)
+                print(createdNodes.count)
             }
         }
     }
@@ -219,19 +170,95 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     
     
-    // MARK: Useful(created) functions
+    
+    
+    
+     
+    
+    //MARK: -------------relate nodes-------------
+    
+
+    func nodeRemover(interval: TimeInterval, repeats: Bool, type: String){
+        let removeType = {
+            print("repeats =\(repeats), type = \(type)")
+            
+            for node in self.createdNodes {
+                if node.name == type {
+                    node.removeFromParentNode()
+                }
+            }
+            
+            switch type {
+            case "line":
+                print("case = line")
+                self.createdNodes.removeAll(where: { $0.name == "line" })
+            case "length":
+                print("case = length")
+                self.createdNodes.removeAll(where: { $0.name == "length" })
+            case "wall":
+                print("case = wall")
+                self.createdNodes.removeAll(where: { $0.name == "wall" })
+            case "spear":
+                print("case = spear")
+                self.createdNodes.removeAll(where: { $0.name == "spear" })
+            default:
+                print("case = default")
+                let configuration = ARWorldTrackingConfiguration()
+                self.sceneView.session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
+
+            }
+        }
+
+        if repeats == true {
+            Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { timer in
+                DispatchQueue.main.async {
+                    removeType()
+                }
+            }
+        } else {
+            DispatchQueue.main.async {
+                removeType()
+            }
+        }
+    }
+
+
+
+    
+    
+    func createSpearNodeWithStride(pointCloud : [simd_float3]) -> SCNNode{
+        
+        let spearNode = SCNNode()
+        for i in stride(from: 0, to: pointCloud.count, by: 100){
+            let node = SCNNode()
+            let point = pointCloud[i]
+            let material = SCNMaterial()
+            material.diffuse.contents = UIColor.yellow
+            node.geometry = SCNSphere(radius: 0.04)
+            node.geometry?.firstMaterial = material
+            node.position = SCNVector3(point.x, point.y, point.z)
+            node.name = "spear"
+            createdNodes.append(node)
+            spearNode.addChildNode(node)
+            
+        }
+        return spearNode
+    }
     
     func createSpearNode(anchor: ARAnchor) -> SCNNode{
         let node = SCNNode()
         let material = SCNMaterial()
         material.diffuse.contents = UIColor.yellow
-        node.geometry = SCNSphere(radius: 0.007)
+        node.geometry = SCNSphere(radius: 0.01)
         node.geometry?.firstMaterial = material
-        node.position = SCNVector3(point.x, point.y, point.z)
-        parent.addChildNode(node)
-        
-        return spear
+        let anchorTransform = anchor.transform.columns.3
+        node.position = SCNVector3(anchorTransform.x, anchorTransform.y, anchorTransform.z)
+        node.name = "spear"
+        createdNodes.append(node)
+        return node
     }
+    
+    //MARK: -------------relate wall node-------------
     
     func createWallNode(planeAnchor: ARPlaneAnchor) -> SCNNode {
         let width = CGFloat(planeAnchor.planeExtent.width)
@@ -246,18 +273,32 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         planeNode.eulerAngles.x = -.pi / 2 // set the angle to attach to the wall
         planeNode.position = SCNVector3(center.x, 0, center.z)
         
-        
+        planeNode.name = "wall"
+        createdNodes.append(planeNode)
         addWall(anchor: planeAnchor)
         
         DispatchQueue.main.async {
             self.textView.text = "Find \(planeAnchor.classification)\n\n width = \(width)\n height = \(height)\n\n rotation = \(planeNode.rotation)"
         }
-        //print("Find \(planeAnchor.classification)\n\n width = \(width)\n height = \(height)\n\n rotation = \(planeNode.rotation)")
+
         return planeNode
         }
     
     
-    //return ARAnchor.0, ARAnchor.1
+    func addWall (anchor : ARAnchor){
+
+        if isNext{
+            wallA = wall(anchor: anchor)
+        }else{
+            wallB = wall(anchor: anchor)
+        }
+        isNext = !isNext
+    }
+    
+    
+    
+    //MARK: -------------relate distance-------------
+
     func findClosestAnchors() -> (ARAnchor, ARAnchor)? {
         guard let anchors = sceneView.session.currentFrame?.anchors else{return nil}
         var minDistance = Float.greatestFiniteMagnitude
@@ -275,15 +316,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         return closePair
     }
     
-    func addWall (anchor : ARAnchor){
-
-        if isNext{
-            wallA = wall(anchor: anchor)
-        }else{
-            wallB = wall(anchor: anchor)
-        }
-        isNext = !isNext
-    }
     
     func findClosestAnchorsFromCamera() -> ARAnchor? {
         guard let anchors = sceneView.session.currentFrame?.anchors,
