@@ -67,10 +67,10 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             let distance = simd_distance(cameraPosition, point)
             return distance <= maxDistance && point.y <= (cameraPosition.y-0.3)
         }
-        
-        
+
         //var lowestDot : Float = Float.infinity
-    
+        
+        //ノイズ除去
         let heights = pointCloud.map{$0.y}
         let ave = movingAverage(size: 8292)//高くすると反応が遅くなる
 
@@ -79,8 +79,22 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             return height > avg ? index : nil
         }
         let obstaclePoints = obstacleIndices.map { pointCloud[$0] }
-
         
+        //スロープ検知処理のコード
+        
+        //ノイズを除去した点群データを配列に保存
+        for point in obstaclePoints {
+                    let angleNode = SCNNode()
+                    angleNode.position = SCNVector3(point.x, point.y, point.z)
+
+                    // createdNodes配列に追加
+                    createdNodes.append(angleNode)
+        }
+        //確認用のプリント
+        for node in createdNodes {
+            print("Node Position: \(node.position)")
+        }
+
         let obstacleLimit: Int = 50
         if obstaclePoints.count > obstacleLimit{
             self.sceneView.scene.rootNode.addChildNode(createSpearNodeWithStride(pointCloud: obstaclePoints))
@@ -99,10 +113,11 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         DispatchQueue.main.async {
             self.textLowest.text = "obstacle limit = \(obstacleLimit)"
         }
+
     }
     
-    
-    
+
+
     func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
         
         if let planeAnchor = anchor as? ARPlaneAnchor {
@@ -348,6 +363,13 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let position1 = anchor1.transform.columns.3
         let position2 = anchor2.transform.columns.3
         return simd_distance(position1, position2)
+    }
+    
+    let cameraLight = UseCameraLight()
+    var isTorchOn = false // トーチの状態を追跡する変数
+    @IBAction func toggleLightButtonPressed(_ sender: UIButton) {
+        isTorchOn.toggle() // トーチの状態を切り替える
+        cameraLight.toggleTorch(on: isTorchOn)
     }
 
 }
