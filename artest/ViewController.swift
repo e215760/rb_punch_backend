@@ -1,10 +1,3 @@
-//
-//  ViewController.swift
-//  artest
-//
-//  Created by Juwon Hyun on 2023/11/14.
-//
-
 import UIKit
 import SceneKit
 import ARKit
@@ -67,33 +60,59 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             let distance = simd_distance(cameraPosition, point)
             return distance <= maxDistance && point.y <= (cameraPosition.y-0.3)
         }
+        //グリッド上に点群データをフィルタリング
+        func filterPointCloud(_ pointCloud: [simd_float3], gridSpacing: Float) -> [simd_float3] {
+            // 最も低い点の高さを探す
+            let minHeight = pointCloud.min(by: { $0.y < $1.y })?.y ?? 0
+            let heightThreshold = minHeight + 0.2
 
-        //var lowestDot : Float = Float.infinity
-        
-        //ノイズ除去
-        let heights = pointCloud.map{$0.y}
-        let ave = movingAverage(size: 8292)//高くすると反応が遅くなる
+            var filteredPoints = [simd_float3]()
+            var grid = [String: Bool]()
+
+            for point in pointCloud {
+                let gridX = Int(floor(point.x / gridSpacing))
+                let gridZ = Int(floor(point.z / gridSpacing))
+                let gridKey = "\(gridX)_\(gridZ)"
+                //カメラの位置から-1mの点群のみ取得
+                let isBelowCamera = point.y <= (cameraPosition.y - 1.0)
+                
+                if isBelowCamera && point.y <= heightThreshold, grid[gridKey] == nil {
+                    filteredPoints.append(point)
+                    grid[gridKey] = true
+                }
+            }
+            return filteredPoints
+        }
+
+        // グリッドフィルタリング
+        let filteredPointCloud = filterPointCloud(pointCloud, gridSpacing: 0.05)
+
+        // ノイズ除去
+        let heights = filteredPointCloud.map { $0.y }
+        let ave = movingAverage(size: 8292)
 
         let obstacleIndices = heights.enumerated().compactMap { index, height in
             let avg = ave.add(height)
             return height > avg ? index : nil
         }
-        let obstaclePoints = obstacleIndices.map { pointCloud[$0] }
         
+        let obstaclePoints = obstacleIndices.map { filteredPointCloud[$0] }
         //スロープ検知処理のコード
         
+        
+        sceneView.scene.rootNode.addChildNode(createSpearNodeWithStride(pointCloud: obstaclePoints))
         //ノイズを除去した点群データを配列に保存
         for point in obstaclePoints {
                     let angleNode = SCNNode()
                     angleNode.position = SCNVector3(point.x, point.y, point.z)
-
                     // createdNodes配列に追加
                     createdNodes.append(angleNode)
         }
+        
         //確認用のプリント
-        for node in createdNodes {
-            print("Node Position: \(node.position)")
-        }
+//        for node in createdNodes {
+//            print("Node Position: \(node.position)")
+//        }
 
         let obstacleLimit: Int = 50
         if obstaclePoints.count > obstacleLimit{
@@ -244,7 +263,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     func createSpearNodeWithStride(pointCloud : [simd_float3]) -> SCNNode{
         
         let spearNode = SCNNode()
-        for i in stride(from: 0, to: pointCloud.count, by: 100){
+        for i in stride(from: 0, to: pointCloud.count, by: 1){
             let node = SCNNode()
             let point = pointCloud[i]
             let material = SCNMaterial()
@@ -272,6 +291,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         createdNodes.append(node)
         return node
     }
+    
     
     //MARK: -------------relate wall node-------------
     
