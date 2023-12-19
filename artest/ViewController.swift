@@ -21,22 +21,48 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     //노드를 삭제를 위한 createnodes
     var createdNodes = [SCNNode]()
     
+    ///for angle v1
+    var overlayPoints = [CGPoint]()
+
+    ///for angle v2
+    var planeAnchors = [ARPlaneAnchor]()
+
+    
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         //nodeRemover(interval: 10, repeats: true, type: "all")
         
         sceneView.delegate = self
-        //sceneView.debugOptions = [ARSCNDebugOptions.showWorldOrigin]
         sceneView.showsStatistics = true
+        //sceneView.debugOptions = [ARSCNDebugOptions.showWorldOrigin]
         let scene = SCNScene()
         sceneView.scene = scene
+        
+        //for angles
+        let totalPoints = 3
+        // 간격을 더 적절하게 조정
+        let gap = view.bounds.height / (CGFloat(totalPoints) * 2) // 예: 총 높이의 1/10
+        // 시작점을 화면 중간 근처로 조정
+        let startY = view.bounds.midY - gap * CGFloat(totalPoints / 2)
+
+        overlayPoints = []
+
+        for i in 0..<totalPoints {
+            let y = startY + gap * CGFloat(i)
+            let point = CGPoint(x: view.bounds.midX, y: y)
+            overlayPoints.append(point)
+        }
+
+        addOverlayViews(points: overlayPoints)
+        
     }
     
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         let configuration = ARWorldTrackingConfiguration()
-        configuration.planeDetection = .vertical
+        configuration.planeDetection = [.horizontal, .vertical]
         configuration.frameSemantics.insert(.sceneDepth)
         sceneView.session.run(configuration)
     }
@@ -60,61 +86,33 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             let distance = simd_distance(cameraPosition, point)
             return distance <= maxDistance && point.y <= (cameraPosition.y-0.3)
         }
-        //グリッド上に点群データをフィルタリング
-        func filterPointCloud(_ pointCloud: [simd_float3], gridSpacing: Float) -> [simd_float3] {
-            // 最も低い点の高さを探す
-            let minHeight = pointCloud.min(by: { $0.y < $1.y })?.y ?? 0
-            let heightThreshold = minHeight + 0.2
 
-            var filteredPoints = [simd_float3]()
-            var grid = [String: Bool]()
 
-            for point in pointCloud {
-                let gridX = Int(floor(point.x / gridSpacing))
-                let gridZ = Int(floor(point.z / gridSpacing))
-                let gridKey = "\(gridX)_\(gridZ)"
-                //カメラの位置から-1mの点群のみ取得
-                let isBelowCamera = point.y <= (cameraPosition.y - 1.0)
-                
-                if isBelowCamera && point.y <= heightThreshold, grid[gridKey] == nil {
-                    filteredPoints.append(point)
-                    grid[gridKey] = true
-                }
-            }
-            return filteredPoints
-        }
-
-        // グリッドフィルタリング
-        let filteredPointCloud = filterPointCloud(pointCloud, gridSpacing: 0.05)
-
-        // ノイズ除去
-        let heights = filteredPointCloud.map { $0.y }
+        // for obstacles ==========================================================================================================================================
+        let heightsForObstacles = pointCloud.map{$0.y}
+        
         let ave = movingAverage(size: 8292)
 
-        let obstacleIndices = heights.enumerated().compactMap { index, height in
+        let obstacleIndex = heightsForObstacles.enumerated().compactMap { index, height in
             let avg = ave.add(height)
             return height > avg ? index : nil
         }
         
-        let obstaclePoints = obstacleIndices.map { filteredPointCloud[$0] }
-        //スロープ検知処理のコード
+        let obstaclePoints = obstacleIndex.map { pointCloud[$0] }
         
-        
-        sceneView.scene.rootNode.addChildNode(createSpearNodeWithStride(pointCloud: obstaclePoints))
-        //ノイズを除去した点群データを配列に保存
         for point in obstaclePoints {
                     let angleNode = SCNNode()
                     angleNode.position = SCNVector3(point.x, point.y, point.z)
-                    // createdNodes配列に追加
                     createdNodes.append(angleNode)
         }
         
-        //確認用のプリント
-//        for node in createdNodes {
-//            print("Node Position: \(node.position)")
-//        }
-
+        
+        
         let obstacleLimit: Int = 50
+        //DispatchQueue.main.async {
+        //    self.textLowest.text = "obstacle limit = \(obstacleLimit)"
+        //}
+        
         if obstaclePoints.count > obstacleLimit{
             self.sceneView.scene.rootNode.addChildNode(createSpearNodeWithStride(pointCloud: obstaclePoints))
             DispatchQueue.main.async {
@@ -129,25 +127,97 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         }
 
         
-        DispatchQueue.main.async {
-            self.textLowest.text = "obstacle limit = \(obstacleLimit)"
+
+        
+        // for floor ==========================================================================================================================================
+        // グリッドフィルタリング
+        let filteredPointCloud = filterPointCloud(pointCloud, gridSpacing: 0.05, cameraPosition: cameraPosition)
+        
+        let heightsForfloor = filteredPointCloud.map { $0.y }
+        
+        let floorIndex = heightsForfloor.enumerated().compactMap { index, height in
+            let avg = ave.add(height)
+            return height > avg ? index : nil
         }
+        
+        let floorPoints = floorIndex.map { filteredPointCloud[$0] }
+        //スロープ検知処理のコード
+        
+        
+        //sceneView.scene.rootNode.addChildNode(createSpearNodeWithStride(pointCloud: floorPoints))
+
+        
+        
+        //for angle ==========================================================================================================================================
+        
+        let angleAverage = movingAverage(size: 5)
+
+            if overlayPoints.count >= 2 {
+                for i in 0..<(overlayPoints.count - 1) {
+                    let point1 = self.performRaycast(from: overlayPoints[i])
+                    let point2 = self.performRaycast(from: overlayPoints[i + 1])
+                    if let p1 = point1, let p2 = point2 {
+                        let angle = self.calculateAngle(p1, p2)
+                        _ = angleAverage.add(angle) // 각도 추가 및 평균 업데이트
+                    }
+                }
+            }
+
+            let averageAngle = angleAverage.average() // 이동 평균 각도
+
+            DispatchQueue.main.async {
+                self.textView.text = "Moving average angle = \(averageAngle)"
+            }
+
+
+        
 
     }
-    
+
 
 
     func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
         
+        var angles = [Float]()
         if let planeAnchor = anchor as? ARPlaneAnchor {
-            
-            node.addChildNode(createWallNode(planeAnchor: planeAnchor))
-            DispatchQueue.main.async{
-                self.textView.text = "Find \(planeAnchor.classification)\n name = \(planeAnchor.identifier)\n  eulerAngles = \(node.eulerAngles)"
+            // Wall (vertical)
+            if planeAnchor.alignment == .vertical{
+                node.addChildNode(createWallNode(planeAnchor: planeAnchor))
+                //DispatchQueue.main.async{
+                //   self.textView.text = "Find \(planeAnchor.classification)\n name = \(planeAnchor.identifier)\n  eulerAngles = \(node.eulerAngles)"
+                //}
+                //nodeRemover(interval: 0, repeats: false, type: "line")
+                //nodeRemover(interval: 0, repeats: false, type: "length")
             }
-            //nodeRemover(interval: 0, repeats: false, type: "line")
-            //nodeRemover(interval: 0, repeats: false, type: "length")
+            // floor (horizontal)
+            if planeAnchor.alignment == .horizontal {
+                    let center = simd_float3(planeAnchor.center.x, planeAnchor.center.y, planeAnchor.center.z)
+                    let points: [simd_float3] = [
+                        center,
+                        simd_float3(center.x + planeAnchor.planeExtent.height/2, center.y, center.z),
+                        simd_float3(center.x, center.y, center.z + planeAnchor.planeExtent.height/2), // 중심에서 앞쪽으로
+                        simd_float3(center.x, center.y, center.z - planeAnchor.planeExtent.height/2)  // 중심에서 뒤쪽으로
+                    ]
+
+                    var angles = [Float]()
+                    for point in points {
+                        let raycastQuery = ARRaycastQuery(origin: point, direction: simd_float3(0, -1, 0), allowing: .estimatedPlane, alignment: .horizontal)
+                        if let result = sceneView.session.raycast(raycastQuery).first {
+                            let angle = calculateFloorAngle(result.worldTransform)
+                            angles.append(angle)
+                        }
+                    }
+
+                    if !angles.isEmpty {
+                        let averageAngle = angles.reduce(0, +) / Float(angles.count)
+                        DispatchQueue.main.async {
+                            self.textLowest.text = "AveFloor Angle: \(averageAngle)"
+                        }
+                    }
+                }
+            
         }
+        
         
         if wallA?.anchor != nil && wallB?.anchor != nil{
             let nodeLine1 = SCNNode()
@@ -180,7 +250,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                 lengthNode.name = "length"
                 createdNodes.append(lengthNode)
                 sceneView.scene.rootNode.addChildNode(lengthNode)
-                print(createdNodes.count)
             }
         }
     }
@@ -205,6 +274,73 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     
     
+    //MARK: for angle functions
+    
+    //for angle view
+    func addOverlayViews(points: [CGPoint]) {
+        for point in points {
+            createAndAddView(at: point)
+        }
+    }
+
+    func createAndAddView(at point: CGPoint) {
+        let overlayView = UIView()
+        overlayView.backgroundColor = .red
+        overlayView.frame = CGRect(x: point.x - 2.5, y: point.y - 2.5, width: 5, height: 5)
+        overlayView.layer.cornerRadius = 2.5
+        view.addSubview(overlayView)
+    }
+    
+    
+    
+    //for raycast
+    func performRaycast(from point: CGPoint) -> simd_float4? {
+            if let raycastQuery = sceneView.raycastQuery(from: point, allowing: .estimatedPlane, alignment: .any),
+               let result = sceneView.session.raycast(raycastQuery).first {
+                return result.worldTransform.columns.3
+            }
+            return nil
+        }
+
+    func calculateAngle(_ point1: simd_float4, _ point2: simd_float4) -> Float {
+        let dx = point2.x - point1.x
+        let dy = point2.y - point1.y
+        let dz = point2.z - point1.z
+        let horizontalDistance = sqrt(dx*dx + dz*dz)
+        let angleForFloor = atan2(dy, horizontalDistance)
+        return angleForFloor * (180.0 / .pi)
+    }
+
+    func calculateFloorAngle(_ transform: matrix_float4x4) -> Float {
+        let normal = transform.columns.2
+        let angleRadians = acos(normal.y)
+        return angleRadians * (180.0 / .pi)
+    }
+    
+    //MARK: for floor
+    //グリッド上に点群データをフィルタリング
+    func filterPointCloud(_ pointCloud: [simd_float3], gridSpacing: Float, cameraPosition: simd_float3) -> [simd_float3] {
+        // 最も低い点の高さを探す
+        let minHeight = pointCloud.min(by: { $0.y < $1.y })?.y ?? 0
+        let heightThreshold = minHeight + 0.2
+
+        var filteredPoints = [simd_float3]()
+        var grid = [String: Bool]()
+
+        for point in pointCloud {
+            let gridX = Int(floor(point.x / gridSpacing))
+            let gridZ = Int(floor(point.z / gridSpacing))
+            let gridKey = "\(gridX)_\(gridZ)"
+            //カメラの位置から-1mの点群のみ取得
+            let isBelowCamera = point.y <= (cameraPosition.y - 1.0)
+            
+            if isBelowCamera && point.y <= heightThreshold, grid[gridKey] == nil {
+                filteredPoints.append(point)
+                grid[gridKey] = true
+            }
+        }
+        return filteredPoints
+    }
     
     
      
@@ -256,14 +392,11 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         }
     }
 
-
-
-    
     
     func createSpearNodeWithStride(pointCloud : [simd_float3]) -> SCNNode{
         
         let spearNode = SCNNode()
-        for i in stride(from: 0, to: pointCloud.count, by: 1){
+        for i in stride(from: 0, to: pointCloud.count, by: 10){
             let node = SCNNode()
             let point = pointCloud[i]
             let material = SCNMaterial()
@@ -312,9 +445,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         createdNodes.append(planeNode)
         addWall(anchor: planeAnchor)
         
-        DispatchQueue.main.async {
-            self.textView.text = "Find \(planeAnchor.classification)\n\n width = \(width)\n height = \(height)\n\n rotation = \(planeNode.rotation)"
-        }
+        //DispatchQueue.main.async {
+        //    self.textView.text = "Find \(planeAnchor.classification)\n\n width = \(width)\n height = \(height)\n\n rotation = \(planeNode.rotation)"
+        //}
 
         return planeNode
         }
