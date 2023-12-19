@@ -114,7 +114,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         //}
         
         if obstaclePoints.count > obstacleLimit{
-            self.sceneView.scene.rootNode.addChildNode(createSpearNodeWithStride(pointCloud: obstaclePoints))
+            self.sceneView.scene.rootNode.addChildNode(createSpearNodeWithStride(pointCloud: obstaclePoints, color: .green, radius: 0.01))
             DispatchQueue.main.async {
                 self.textHeight.text = "Obstacle points =\(obstaclePoints.count)"
                 self.textObject.text = "Obstacles found"
@@ -140,7 +140,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             return height > avg ? index : nil
         }
         
-        let floorPoints = floorIndex.map { filteredPointCloud[$0] }
+        _ = floorIndex.map { filteredPointCloud[$0] }
         //スロープ検知処理のコード
         
         
@@ -178,7 +178,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
 
     func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
         
-        var angles = [Float]()
+        _ = [Float]()
         if let planeAnchor = anchor as? ARPlaneAnchor {
             // Wall (vertical)
             if planeAnchor.alignment == .vertical{
@@ -393,25 +393,23 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     }
 
     
-    func createSpearNodeWithStride(pointCloud : [simd_float3]) -> SCNNode{
-        
+    func createSpearNodeWithStride(pointCloud: [simd_float3], color: UIColor, radius: CGFloat) -> SCNNode {
         let spearNode = SCNNode()
-        for i in stride(from: 0, to: pointCloud.count, by: 10){
+        for i in stride(from: 0, to: pointCloud.count, by: 1) {
             let node = SCNNode()
             let point = pointCloud[i]
             let material = SCNMaterial()
-            material.diffuse.contents = UIColor.yellow
-            node.geometry = SCNSphere(radius: 0.04)
+            material.diffuse.contents = color
+            node.geometry = SCNSphere(radius: radius)
             node.geometry?.firstMaterial = material
             node.position = SCNVector3(point.x, point.y, point.z)
             node.name = "spear"
             createdNodes.append(node)
             spearNode.addChildNode(node)
-            
         }
         return spearNode
     }
-    
+
     func createSpearNode(anchor: ARAnchor) -> SCNNode{
         let node = SCNNode()
         let material = SCNMaterial()
