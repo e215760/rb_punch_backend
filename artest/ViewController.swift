@@ -31,8 +31,19 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        //nodeRemover(interval: 10, repeats: true, type: "all")
         
+        // 30秒ごとにnodeRemoverを呼び出すタイマーを設定
+        Timer.scheduledTimer(withTimeInterval: 15.0, repeats: true) { [weak self] _ in
+            self?.nodeRemover(interval: 15)
+        }
+//        // タイマーを設定し、3秒ごとに配列の要素数をログに出力
+//        Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+//            guard let self = self else { return }
+//            let count = self.createdNodes.count
+//            print("要素数: \(count)")
+//        }
+
+
         sceneView.delegate = self
         sceneView.showsStatistics = true
         //sceneView.debugOptions = [ARSCNDebugOptions.showWorldOrigin]
@@ -77,7 +88,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
         
-        
         guard let cameraTransform = sceneView.session.currentFrame?.camera.transform else { return }
         let cameraPosition = simd_make_float3(cameraTransform.columns.3.x, cameraTransform.columns.3.y, cameraTransform.columns.3.z)
         guard let pointCloudBefore = sceneView.session.currentFrame?.rawFeaturePoints else { return }
@@ -88,9 +98,11 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         }
 
 
-        // for obstacles ==========================================================================================================================================
-        let heightsForObstacles = pointCloud.map{$0.y}
+        // for obstacles 障害物検知 ==========================================================================================================================================
+        //let heightsForObstacles = pointCloud.map{$0.y}
+        let filteredPointCloud = filterPointCloud(pointCloud, cameraPosition: cameraPosition)
         
+        let heightsForObstacles = filteredPointCloud.map { $0.y }
         let ave = movingAverage(size: 8292)
 
         let obstacleIndex = heightsForObstacles.enumerated().compactMap { index, height in
@@ -114,7 +126,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         //}
         
         if obstaclePoints.count > obstacleLimit{
-            self.sceneView.scene.rootNode.addChildNode(createSpearNodeWithStride(pointCloud: obstaclePoints, color: .green, radius: 0.01))
+            self.sceneView.scene.rootNode.addChildNode(createSpearNodeWithStride(pointCloud: obstaclePoints, color: .red, radius: 0.01))
             DispatchQueue.main.async {
                 self.textHeight.text = "Obstacle points =\(obstaclePoints.count)"
                 self.textObject.text = "Obstacles found"
@@ -130,8 +142,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
 
         
         // for floor ==========================================================================================================================================
-        // グリッドフィルタリング
-        let filteredPointCloud = filterPointCloud(pointCloud, gridSpacing: 0.05, cameraPosition: cameraPosition)
+        // フィルタリング
+        //let filteredPointCloud = filterPointCloud(pointCloud, cameraPosition: cameraPosition)
         
         let heightsForfloor = filteredPointCloud.map { $0.y }
         
@@ -319,78 +331,135 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     //MARK: for floor
     //グリッド上に点群データをフィルタリング
-    func filterPointCloud(_ pointCloud: [simd_float3], gridSpacing: Float, cameraPosition: simd_float3) -> [simd_float3] {
+    func filterPointCloud(_ pointCloud: [simd_float3], cameraPosition: simd_float3) -> [simd_float3] {
         // 最も低い点の高さを探す
         let minHeight = pointCloud.min(by: { $0.y < $1.y })?.y ?? 0
         let heightThreshold = minHeight + 0.2
 
         var filteredPoints = [simd_float3]()
-        var grid = [String: Bool]()
 
         for point in pointCloud {
-            let gridX = Int(floor(point.x / gridSpacing))
-            let gridZ = Int(floor(point.z / gridSpacing))
-            let gridKey = "\(gridX)_\(gridZ)"
             //カメラの位置から-1mの点群のみ取得
-            let isBelowCamera = point.y <= (cameraPosition.y - 1.0)
+            let isBelowCamera = point.y <= (cameraPosition.y - 0.7)
             
-            if isBelowCamera && point.y <= heightThreshold, grid[gridKey] == nil {
+            if isBelowCamera && point.y <= heightThreshold {
                 filteredPoints.append(point)
-                grid[gridKey] = true
             }
         }
         return filteredPoints
     }
+//    func filterPointCloud(_ pointCloud: [simd_float3], gridSpacing: Float, cameraPosition: simd_float3) -> [simd_float3] {
+//        // 最も低い点の高さを探す
+//        let minHeight = pointCloud.min(by: { $0.y < $1.y })?.y ?? 0
+//        let heightThreshold = minHeight + 0.2
+//
+//        var filteredPoints = [simd_float3]()
+//        var grid = [String: Bool]()
+//
+//        for point in pointCloud {
+//            let gridX = Int(floor(point.x / gridSpacing))
+//            let gridZ = Int(floor(point.z / gridSpacing))
+//            let gridKey = "\(gridX)_\(gridZ)"
+//            //カメラの位置から-1mの点群のみ取得
+//            let isBelowCamera = point.y <= (cameraPosition.y - 1.0)
+//            
+//            if isBelowCamera && point.y <= heightThreshold, grid[gridKey] == nil {
+//                filteredPoints.append(point)
+//                grid[gridKey] = true
+//            }
+//        }
+//        return filteredPoints
+//    }
     
     
      
     
     //MARK: -------------relate nodes-------------
+
+//    func nodeRemover(interval: TimeInterval, keepCount: Int) {
+//        guard !createdNodes.isEmpty else { return }
+//
+//        let removeCount = max(createdNodes.count - keepCount, 0)
+//        guard removeCount > 0 else { return }
+//
+//        // 安全にノードを削除
+//        for node in createdNodes.prefix(removeCount) {
+//            // ノードがまだシーンの一部であることを確認
+//            if node.parent != nil {
+//                node.removeFromParentNode()
+//            }
+//        }
+//
+//        // 新しい配列を作成して、createdNodesに再割り当て
+//        createdNodes = Array(createdNodes.dropFirst(removeCount))
+//    }
     
+    func nodeRemover(interval: TimeInterval) {
+        guard !createdNodes.isEmpty else { return }
 
-    func nodeRemover(interval: TimeInterval, repeats: Bool, type: String){
-        let removeType = {
-            print("repeats =\(repeats), type = \(type)")
-            
-            for node in self.createdNodes {
-                if node.name == type {
-                    node.removeFromParentNode()
-                }
-            }
-            
-            switch type {
-            case "line":
-                print("case = line")
-                self.createdNodes.removeAll(where: { $0.name == "line" })
-            case "length":
-                print("case = length")
-                self.createdNodes.removeAll(where: { $0.name == "length" })
-            case "wall":
-                print("case = wall")
-                self.createdNodes.removeAll(where: { $0.name == "wall" })
-            case "spear":
-                print("case = spear")
-                self.createdNodes.removeAll(where: { $0.name == "spear" })
-            default:
-                print("case = default")
-                let configuration = ARWorldTrackingConfiguration()
-                self.sceneView.session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
+        let totalNodes = createdNodes.count
+        let keepCount = Int(Double(totalNodes) * 0.8) // 保持する要素の数を計算
+        let removeCount = totalNodes - keepCount             // 削除する要素の数を計算
 
+        guard removeCount > 0 else { return }
+
+        // 削除するノードの数が配列の要素数を超えないように保証
+        for node in createdNodes.prefix(removeCount) {
+            // ノードがまだシーンの一部であることを確認
+            if node.parent != nil {
+                node.removeFromParentNode()
             }
         }
 
-        if repeats == true {
-            Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { timer in
-                DispatchQueue.main.async {
-                    removeType()
-                }
-            }
-        } else {
-            DispatchQueue.main.async {
-                removeType()
-            }
-        }
+        // 新しい配列を作成して、createdNodesに再割り当て
+        createdNodes = Array(createdNodes.dropFirst(removeCount))
     }
+
+    
+//    func nodeRemover(interval: TimeInterval, repeats: Bool, type: String){
+//        let removeType = {
+//            print("repeats =\(repeats), type = \(type)")
+//            
+//            for node in self.createdNodes {
+//                if node.name == type {
+//                    node.removeFromParentNode()
+//                }
+//            }
+//            
+//            switch type {
+//            case "line":
+//                print("case = line")
+//                self.createdNodes.removeAll(where: { $0.name == "line" })
+//            case "length":
+//                print("case = length")
+//                self.createdNodes.removeAll(where: { $0.name == "length" })
+//            case "wall":
+//                print("case = wall")
+//                self.createdNodes.removeAll(where: { $0.name == "wall" })
+//            case "spear":
+//                print("case = spear")
+//                self.createdNodes.removeAll(where: { $0.name == "spear" })
+//            default:
+//                print("case = default")
+//                let configuration = ARWorldTrackingConfiguration()
+//                self.sceneView.session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
+//
+//            }
+//        }
+//
+//        if repeats == true {
+//            Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { timer in
+//                DispatchQueue.main.async {
+//                    removeType()
+//                }
+//            }
+//        } else {
+//            DispatchQueue.main.async {
+//                removeType()
+//            }
+//        }
+//    }
+    
 
     
     func createSpearNodeWithStride(pointCloud: [simd_float3], color: UIColor, radius: CGFloat) -> SCNNode {
@@ -400,6 +469,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             let point = pointCloud[i]
             let material = SCNMaterial()
             material.diffuse.contents = color
+            material.transparency = 0.5  // 透明度を設定 (0.0 完全透明, 1.0 完全不透明)
+            material.isDoubleSided = true  // 両面レンダリングを有効にする
             node.geometry = SCNSphere(radius: radius)
             node.geometry?.firstMaterial = material
             node.position = SCNVector3(point.x, point.y, point.z)
