@@ -52,9 +52,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         //for angles
         let totalPoints = 3
-        // 간격을 더 적절하게 조정
+        // 간격을 더 적절하게 조정(間隔をより適切に調整する)
         let gap = view.bounds.height / (CGFloat(totalPoints) * 2) // 예: 총 높이의 1/10
-        // 시작점을 화면 중간 근처로 조정
+        // 시작점을 화면 중간 근처로 조정(開始点を画面中央付近に調整)
         let startY = view.bounds.midY - gap * CGFloat(totalPoints / 2)
 
         overlayPoints = []
@@ -170,7 +170,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                     let point2 = self.performRaycast(from: overlayPoints[i + 1])
                     if let p1 = point1, let p2 = point2 {
                         let angle = self.calculateAngle(p1, p2)
-                        _ = angleAverage.add(angle) // 각도 추가 및 평균 업데이트
+                        _ = angleAverage.add(angle) // 각도 추가 및 평균 업데이트(角度追加と平均更新)
                     }
                 }
             }
@@ -295,15 +295,34 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         }
     }
 
+//    func createAndAddView(at point: CGPoint) {
+//        let overlayView = UIView()
+//        overlayView.backgroundColor = .red
+//        overlayView.frame = CGRect(x: point.x - 2.5, y: point.y - 2.5, width: 5, height: 5)
+//        overlayView.layer.cornerRadius = 2.5
+//        view.addSubview(overlayView)
+//    }
+    
+    
     func createAndAddView(at point: CGPoint) {
-        let overlayView = UIView()
-        overlayView.backgroundColor = .red
-        overlayView.frame = CGRect(x: point.x - 2.5, y: point.y - 2.5, width: 5, height: 5)
-        overlayView.layer.cornerRadius = 2.5
-        view.addSubview(overlayView)
+        let size: CGFloat = 8 // プラス記号のサイズ
+        let thickness: CGFloat = 2 // プラス記号の線の太さ
+
+        // 水平な線を作成
+        let horizontalView = UIView()
+        horizontalView.backgroundColor = .green
+        horizontalView.frame = CGRect(x: point.x - size / 2, y: point.y - thickness / 2, width: size, height: thickness)
+
+        // 垂直な線を作成
+        let verticalView = UIView()
+        verticalView.backgroundColor = .green
+        verticalView.frame = CGRect(x: point.x - thickness / 2, y: point.y - size / 2, width: thickness, height: size)
+
+        // ビューを追加
+        view.addSubview(horizontalView)
+        view.addSubview(verticalView)
     }
-    
-    
+
     
     //for raycast
     func performRaycast(from point: CGPoint) -> simd_float4? {
@@ -328,6 +347,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let angleRadians = acos(normal.y)
         return angleRadians * (180.0 / .pi)
     }
+    
+    
     
     //MARK: for floor
     //グリッド上に点群データをフィルタリング
